@@ -590,12 +590,13 @@ function fillOppCombo() {
 function pullContact() {
   var o = S.oppMap[$('#a_opp').value];
   if (!o) return;
-  if (!$('#a_contact').value) $('#a_contact').value = o.contactPerson || '';
+  if (!$('#a_contactName').value) $('#a_contactName').value = o.contactPerson || '';
+  if (!$('#a_contact').value) $('#a_contact').value = o.contactNumber || '';
   if (!$('#a_email').value) $('#a_email').value = o.contactEmail || '';
   var hint = $('#a_contactHint');
-  if (hint) hint.textContent = (o.contactPerson || o.contactEmail)
-    ? 'From ' + o.customer + '. Change it here and the opportunity is updated.'
-    : "Saved on the customer's opportunity, so it fills itself in next time.";
+  if (hint) hint.textContent = (o.contactPerson || o.contactNumber || o.contactEmail)
+    ? 'From ' + o.customer + '. Change any of them here and the opportunity is updated.'
+    : "These three are saved on the customer's opportunity, so they fill themselves in next time.";
 }
 
 /* You typed an opportunity name that does not exist yet, for a customer that
@@ -674,7 +675,8 @@ function createOpp(customer, dealName) {
     location: $('#a_loc').value || '',
     partner: $('#a_partner').value || '',
     veeamStakeholder: $('#a_stake').value || '',
-    contactPerson: $('#a_contact').value || '',
+    contactPerson: $('#a_contactName').value || '',
+    contactNumber: $('#a_contact').value || '',
     contactEmail: $('#a_email').value || ''
   });
   return S.api('saveOpportunity', rec).then(function () {
@@ -1401,7 +1403,8 @@ function openAct(id, quickType, presetDate) {
   var oppOf = r && r.oppId ? S.oppMap[r.oppId] : null;
   v('#a_customer', (oppOf && oppOf.customer) || (r && r.customer) ||
                    (r ? customerFromTitle(r.title, r.type) : ''));
-  v('#a_contact', (oppOf && oppOf.contactPerson) || '');
+  v('#a_contactName', (oppOf && oppOf.contactPerson) || '');
+  v('#a_contact', (oppOf && oppOf.contactNumber) || '');
   v('#a_email', (oppOf && oppOf.contactEmail) || '');
   fillOppCombo();
   if (r && r.oppId) setOppPick(r.oppId);
@@ -1535,9 +1538,11 @@ function saveAct(mode) {
     if (rec.followUpDate) upd.followUpDate = rec.followUpDate;
     /* Contact details live on the customer, not on one meeting — so typing
        them here keeps the master record current. Blank never wipes. */
-    var cp = String($('#a_contact').value || '').trim();
+    var cp = String($('#a_contactName').value || '').trim();
+    var cn = String($('#a_contact').value || '').trim();
     var ce = String($('#a_email').value || '').trim();
     if (cp) upd.contactPerson = cp;
+    if (cn) upd.contactNumber = cn;
     if (ce) upd.contactEmail = ce;
     var ro = A.normOpp(upd);
     S.upsert('opportunities', ro, A.normOpp);
@@ -2286,7 +2291,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v14</b>';
+    ' · everything stored in your private Google Sheet · <b>v15</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */

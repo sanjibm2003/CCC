@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Channel Command Center</title>
-<meta name="app-version" content="v14">
+<meta name="app-version" content="v15">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -30,7 +30,7 @@
       <div id="diag" class="hide" style="margin-top:10px"></div>
     </div>
 
-    <div class="gatefoot" style="margin-top:10px"><b>v14</b> · built 2026-08-14</div>
+    <div class="gatefoot" style="margin-top:10px"><b>v15</b> · built 2026-08-14</div>
     <div class="gatefoot">
       Everything lives in your private Google Sheet — nothing is published in this
       website's files. Forgotten the token? Open the Sheet and use
@@ -357,10 +357,12 @@
           <input id="a_oppPick" autocomplete="off" placeholder="which deal…">
           <input type="hidden" id="a_opp">
           <span class="hint">Linking moves the opportunity's stage, next action and follow-up forward.</span></div>
-        <div class="f c2 dealonly"><label>Customer contact</label>
-          <input id="a_contact" placeholder="who you dealt with">
-          <span class="hint" id="a_contactHint">Saved on the customer's opportunity, so it fills itself in next time.</span></div>
-        <div class="f c2 dealonly"><label>Customer email</label>
+        <div class="f c2 dealonly"><label>Contact person name</label>
+          <input id="a_contactName" placeholder="who you dealt with">
+          <span class="hint" id="a_contactHint">These three are saved on the customer's opportunity, so they fill themselves in next time.</span></div>
+        <div class="f dealonly"><label>Contact number</label>
+          <input id="a_contact" placeholder="phone"></div>
+        <div class="f dealonly"><label>Customer email</label>
           <input id="a_email" type="email" placeholder="name@company.com"></div>
         <div class="f dealonly"><label>Stage after this</label><input id="a_stage" autocomplete="off"></div>
         <div class="f dealonly"><label>Product</label><input id="a_product" autocomplete="off"></div>

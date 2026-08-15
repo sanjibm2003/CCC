@@ -29,7 +29,7 @@ var SH_LOG = 'Log';
    compares this against what it expects and warns you if the deployment is
    stale — the most common upgrade mistake is editing Code.gs but forgetting
    Deploy > Manage deployments > New version. */
-var BACKEND_VERSION = 14;
+var BACKEND_VERSION = 15;
 
 var ACT_COLS = ['id','date','startTime','endTime','kind','type','level','title','oppId','customer',
                 'partner','partnerType','zone','location','veeamStakeholder','se','audience','partnerTier',
