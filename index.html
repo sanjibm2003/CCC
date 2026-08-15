@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Channel Command Center</title>
+<meta name="app-version" content="v13">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<!-- ============================== GATE ============================== -->
+<div id="gate">
+  <div class="gatebox">
+    <div class="logo">V</div>
+    <h1>Channel Command Center</h1>
+    <p id="gateSub">Private. Enter your access token to continue.</p>
+    <input id="gateTok" type="password" placeholder="access token" autocomplete="off" spellcheck="false">
+    <label style="display:flex;align-items:center;gap:6px;justify-content:center;font-size:12px;color:var(--ink2);margin-top:10px">
+      <input type="checkbox" id="gateRemember"> Remember me on this device
+    </label>
+    <button class="btn p" id="gateGo">Unlock</button>
+    <div class="gatemsg" id="gateMsg"></div>
+
+    <div id="diagWrap" style="margin-top:14px;text-align:left">
+      <button class="btn" id="diagRun" style="width:100%;justify-content:center;font-size:12.5px">
+        Something not working? Run a self-check
+      </button>
+      <div id="diag" class="hide" style="margin-top:10px"></div>
+    </div>
+
+    <div class="gatefoot" style="margin-top:10px"><b>v13</b> · built 2026-08-14</div>
+    <div class="gatefoot">
+      Everything lives in your private Google Sheet — nothing is published in this
+      website's files. Forgotten the token? Open the Sheet and use
+      <b>Command Center &rarr; Show access token</b>.
+    </div>
+  </div>
+</div>
+
+<!-- =============================== APP =============================== -->
+<div class="wrap hide" id="app">
+
+  <div class="top">
+    <div class="brand">
+      <div class="logo">V</div>
+      <div>
+        <h1>Channel Command Center</h1>
+        <div class="sub" id="subline"></div>
+      </div>
+    </div>
+    <span class="src" id="srcLabel"></span>
+    <button class="btn" id="btnReload" title="Reload from the Sheet">⟳</button>
+    <div class="dd" id="ddNew">
+      <button class="btn p" data-ddtoggle>+ Log ▾</button>
+      <div class="dd-menu">
+        <div class="dd-lbl">Enablement</div>
+        <button data-quick="Training">Training</button>
+        <button data-quick="Webinar">Webinar</button>
+        <button data-quick="PRT">Partner round table</button>
+        <button data-quick="CRT">Customer round table</button>
+        <button data-quick="Bootcamp">Bootcamp</button>
+        <div class="dd-sep"></div>
+        <div class="dd-lbl">Deal support</div>
+        <button data-quick="Demo">Demo</button>
+        <button data-quick="Meeting">Meeting</button>
+        <button data-quick="Call">Call</button>
+        <button data-quick="POC">POC</button>
+        <button data-quick="Design Session">Design session</button>
+        <div class="dd-sep"></div>
+        <button data-new="opp">New opportunity</button>
+        <button data-new="partner">New partner</button>
+      </div>
+    </div>
+    <div class="dd" id="ddTools">
+      <button class="btn" data-ddtoggle>Tools ▾</button>
+      <div class="dd-menu">
+        <div class="dd-lbl">Export</div>
+        <button data-act="csv-act">Activity log CSV</button>
+        <button data-act="csv-opp">Opportunities CSV</button>
+        <button data-act="ics">Upcoming .ics for Outlook</button>
+        <button data-act="backup">Full backup (JSON)</button>
+        <div class="dd-sep"></div>
+        <div class="dd-lbl">Sheet</div>
+        <button data-act="import">First-time data import…</button>
+        <button data-act="settings">Connection &amp; token…</button>
+        <div class="dd-sep"></div>
+        <button data-act="print">Print / save as PDF</button>
+        <button data-act="lock">Lock this session</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="banner hide" id="banner"></div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="dash">Dashboard</button>
+    <button class="tab" data-tab="log">Daily Log <span class="cnt" id="cLog"></span></button>
+    <button class="tab" data-tab="events">Events &amp; Trainings <span class="cnt" id="cEv"></span></button>
+    <button class="tab" data-tab="pipe">Pipeline <span class="cnt" id="cPipe"></span></button>
+    <button class="tab" data-tab="avail">Availability</button>
+    <button class="tab" data-tab="data">Data</button>
+  </div>
+
+  <div class="filters" id="gbar">
+    <div class="fw"><label>Period</label><select id="fPeriod">
+      <option value="">All time</option>
+      <option value="30">Last 30 days</option>
+      <option value="90">Last 90 days</option>
+      <option value="next30">Next 30 days</option>
+      <option value="q">This quarter</option>
+    </select></div>
+    <div class="fw"><label>Quarter</label><select id="fQ"></select></div>
+    <div class="fw"><label>Kind</label><select id="fKind"></select></div>
+    <div class="fw"><label>Zone</label><select id="fZone"></select></div>
+    <div class="fw"><label>Veeam stakeholder</label><select id="fStake"></select></div>
+    <div class="fw"><label>Partner / Disti</label><select id="fPartner"></select></div>
+    <div class="fw grow"><label>Search</label><input id="fSearch" placeholder="Title, customer, partner, city, notes…"></div>
+    <div class="chip-count" id="fCount"></div>
+    <button class="btn gh" id="fClear" style="margin-bottom:2px">Clear</button>
+  </div>
+
+  <!-- ========================== DASHBOARD ========================== -->
+  <section id="pane-dash">
+    <div class="custbar hide" id="custbar">
+      <h4>Show, hide and drag panels to reorder — your layout saves to the Sheet</h4>
+      <div class="plist" id="plist"></div>
+      <div style="margin-top:9px;display:flex;gap:7px;flex-wrap:wrap">
+        <button class="btn sm" id="pAll">Show all</button>
+        <button class="btn sm" id="pNone">Hide all</button>
+        <button class="btn sm" id="pReset">Reset to default</button>
+        <button class="btn sm p" id="pSave" style="margin-left:auto">Save layout</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn sm" id="btnCust">Customise dashboard</button>
+    </div>
+    <div class="pgrid" id="pgrid"></div>
+  </section>
+
+  <!-- ========================== DAILY LOG ========================== -->
+  <section id="pane-log" class="hide">
+    <div class="filters">
+      <div class="fw"><label>View</label><div class="seg" id="logSeg">
+        <button class="on" data-lv="table">Table</button><button data-lv="cal">Calendar</button>
+      </div></div>
+      <div class="fw"><label>Type</label><select id="lType"></select></div>
+      <div class="fw"><label>Status</label><select id="lStatus"></select></div>
+      <div class="fw"><label>Mode</label><select id="lMode"></select></div>
+      <div class="fw"><label>Linked</label><select id="lLinked">
+        <option value="">Everything</option><option value="yes">Linked to an opportunity</option>
+        <option value="no">Not linked</option></select></div>
+      <div class="chip-count" id="lCount"></div>
+      <button class="btn sm" id="lNew" style="margin-bottom:2px">+ Log activity</button>
+    </div>
+      <div class="bulkbar hide" id="bulkBar">
+        <span id="bulkCount"></span>
+        <button class="btn sm" id="bulkEdit">Edit selected…</button>
+        <button class="btn sm dg" id="bulkDel">Delete selected</button>
+        <button class="btn sm gh" id="bulkClear">Clear selection</button>
+      </div>
+    <div id="ltable" class="tblwrap"><table class="dt" id="tblLog"><thead></thead><tbody></tbody></table></div>
+    <div id="lcal" class="card hide">
+      <div class="calhead">
+        <button class="btn sm" id="mPrev">‹</button>
+        <div class="mn" id="mLabel"></div>
+        <button class="btn sm" id="mNext">›</button>
+        <button class="btn sm" id="mToday">Today</button>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;margin-left:8px;color:var(--ink2)">
+          <input type="checkbox" id="shadeAvail" checked> Tag travel &amp; holidays
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink2)">
+          <input type="checkbox" id="showOutlook" checked> Show Outlook meetings
+        </label>
+      </div>
+      <div class="cal" id="calGrid"></div>
+      <div class="legend" id="calLegend"></div>
+    </div>
+  </section>
+
+  <!-- ====================== EVENTS & TRAININGS ====================== -->
+  <section id="pane-events" class="hide">
+    <div class="note" style="margin-bottom:12px">
+      The same activity log, filtered to <b>Enablement</b> — trainings, webinars, sessions, round tables,
+      bootcamps and events — with the registration and attendance columns that only apply here.
+    </div>
+    <div class="filters">
+      <div class="fw"><label>Type</label><select id="eType"></select></div>
+      <div class="fw"><label>Category</label><select id="eCat"></select></div>
+      <div class="fw"><label>Audience</label><select id="eAud"></select></div>
+      <div class="fw"><label>Mode</label><select id="eMode"></select></div>
+      <div class="fw"><label>Status</label><select id="eStatus"></select></div>
+      <div class="chip-count" id="eCount"></div>
+      <button class="btn sm" id="eNew" style="margin-bottom:2px">+ New event</button>
+    </div>
+    <div class="grid kpis" id="eKpis" style="margin-bottom:12px"></div>
+      <div class="bulkbar hide" id="bulkBarE">
+        <span id="bulkCountE"></span>
+        <button class="btn sm" id="bulkEditE">Edit selected…</button>
+        <button class="btn sm dg" id="bulkDelE">Delete selected</button>
+        <button class="btn sm gh" id="bulkClearE">Clear selection</button>
+      </div>
+    <div class="tblwrap"><table class="dt" id="tblEv"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- ============================ PIPELINE ============================ -->
+  <section id="pane-pipe" class="hide">
+    <div class="filters">
+      <div class="fw"><label>View</label><div class="seg" id="pipeSeg">
+        <button class="on" data-pv="board">Board</button><button data-pv="table">Table</button>
+      </div></div>
+      <div class="fw"><label>State</label><select id="pState">
+        <option value="Open">Open only</option><option value="">All</option><option value="Closed">Closed</option></select></div>
+      <div class="fw"><label>Stage</label><select id="pStage"></select></div>
+      <div class="fw"><label>Product</label><select id="pProd"></select></div>
+      <div class="fw"><label>Industry</label><select id="pInd"></select></div>
+      <div class="fw"><label>Flag</label><select id="pFlag">
+        <option value="">Everything</option><option value="overdue">Overdue follow-up</option>
+        <option value="stale">Nothing logged 30+ days</option><option value="nopartner">No partner</option></select></div>
+      <div class="chip-count" id="pCount"></div>
+      <button class="btn sm" id="pNew" style="margin-bottom:2px">+ Opportunity</button>
+    </div>
+    <div id="board" class="kb"></div>
+      <div class="bulkbar hide" id="bulkBarP">
+        <span id="bulkCountP"></span>
+        <button class="btn sm" id="bulkEditP">Edit selected…</button>
+        <button class="btn sm dg" id="bulkDelP">Delete selected</button>
+        <button class="btn sm gh" id="bulkClearP">Clear selection</button>
+      </div>
+    <div id="ptable" class="tblwrap hide"><table class="dt" id="tblOpp"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- ========================== AVAILABILITY ========================== -->
+  <section id="pane-avail" class="hide">
+    <div class="card" style="margin-bottom:12px">
+      <div class="calhead">
+        <button class="btn sm" id="aPrev">‹</button>
+        <div class="mn" id="aLabel"></div>
+        <button class="btn sm" id="aNext">›</button>
+        <button class="btn sm" id="aToday">This month</button>
+        <span class="src" id="aSummary" style="margin-left:auto"></span>
+        <span class="src" id="aDirty"></span>
+        <button class="btn p" id="aSave">Save month</button>
+      </div>
+      <div class="brush" style="margin-bottom:8px">
+        <span style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px">Brush</span>
+        <button class="bsw free on" data-brush="Free">Free</button>
+        <button class="bsw busy" data-brush="Busy">Busy</button>
+        <button class="bsw travelling" data-brush="Travelling">Travelling</button>
+        <button class="bsw personal" data-brush="Personal">Personal</button>
+        <button class="bsw clear" data-brush="">Clear</button>
+        <span class="src" style="margin-left:4px">Click a slot or drag across several.</span>
+      </div>
+      <div class="brush" style="margin-bottom:8px">
+        <span style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px">Month</span>
+        <button class="btn sm" id="bTemplate">Apply my usual week</button>
+        <button class="btn sm" id="bFromActs">Block out logged activities</button>
+        <button class="btn sm" id="bFromOutlook">Block out Outlook meetings</button>
+        <button class="btn sm" id="bClearMonth">Clear month</button>
+        <button class="btn sm" id="bEditTpl">Edit usual week…</button>
+      </div>
+      <div class="brush">
+        <span style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px">Date range</span>
+        <input type="date" id="rFrom" style="border:1px solid var(--line);border-radius:7px;padding:4px 7px;font-size:12.5px">
+        <span class="src">to</span>
+        <input type="date" id="rTo" style="border:1px solid var(--line);border-radius:7px;padding:4px 7px;font-size:12.5px">
+        <select id="rWhat" style="border:1px solid var(--line);border-radius:7px;padding:4px 7px;font-size:12.5px"></select>
+        <input id="rCity" placeholder="city (travel only)" list="dl_city2"
+               style="border:1px solid var(--line);border-radius:7px;padding:4px 7px;font-size:12.5px;width:150px">
+        <datalist id="dl_city2"></datalist>
+        <button class="btn sm p" id="rApply">Apply to range</button>
+        <span class="src">One click for a whole travel week.</span>
+      </div>
+    </div>
+    <div class="banner hide" id="avConflict"></div>
+    <div class="avwrap"><div id="avGrid"></div></div>
+    <div class="avlegend" id="avLegend"></div>
+  </section>
+
+  <!-- ============================== DATA ============================== -->
+  <section id="pane-data" class="hide">
+    <div class="grid two" style="margin-bottom:12px">
+      <div class="card"><h3>Sheet connection</h3><dl class="dl" id="connInfo"></dl></div>
+      <div class="card"><h3>Data health <span>— worth tidying</span></h3><div class="att" id="health"></div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px">
+      <div class="calhead">
+        <h3 style="margin:0">Dropdown lists</h3>
+        <span class="src">Edit these and every form on the site follows. Renaming updates
+          every existing record, so you can tidy old values without touching rows.</span>
+      </div>
+      <div class="fg" style="grid-template-columns:220px 1fr;gap:14px;align-items:start">
+        <div class="f">
+          <label>List</label>
+          <select id="lsPick" size="12" style="height:auto;padding:4px"></select>
+          <span class="hint" id="lsHint"></span>
+        </div>
+        <div>
+          <div class="brush" style="margin-bottom:8px">
+            <input id="lsNew" placeholder="add a value…" style="border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;min-width:190px">
+            <button class="btn sm" id="lsAdd">Add</button>
+            <span class="src" style="margin-left:auto" id="lsDirty"></span>
+            <button class="btn sm" id="lsReset">Reset to default</button>
+            <button class="btn sm p" id="lsSave">Save lists</button>
+          </div>
+          <div id="lsRows"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px">
+      <div class="calhead">
+        <h3 style="margin:0">Outlook calendar <span id="olState"></span></h3>
+        <button class="btn sm" id="syncOutlook" style="margin-left:auto">Sync now</button>
+      </div>
+      <div class="olcard" id="olInfo"></div>
+    </div>
+    <div class="card">
+      <div class="calhead">
+        <h3 style="margin:0">Partner &amp; distributor master <span id="ptrCount"></span></h3>
+        <input id="ptrSearch" placeholder="Search…" style="border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px">
+        <button class="btn sm" id="ptrNew" style="margin-left:auto">+ Partner</button>
+      </div>
+      <div class="tblwrap" style="max-height:50vh"><table class="dt" id="tblPtr"><thead></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <p class="src" style="margin-top:18px;text-align:center" id="footer"></p>
+</div>
+
+<!-- ==================== ACTIVITY FORM (adaptive) ==================== -->
+<div class="ov" id="ovAct">
+  <div class="mo">
+    <div class="mo-h"><h2 id="actTitle">Log activity</h2>
+      <span id="actKindChip"></span><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <div class="err" id="actErr"></div>
+      <div class="fg">
+        <div class="sec">What &amp; when</div>
+        <div class="f"><label>Type <em>*</em></label><input id="a_type" autocomplete="off">
+          <span class="hint" id="a_kindHint"></span></div>
+        <div class="f"><label>Date <em>*</em></label><input type="date" id="a_date"></div>
+        <div class="f"><label>Start</label><input type="time" id="a_start"></div>
+        <div class="f"><label>End</label><input type="time" id="a_end"></div>
+        <div class="f c3"><label>Title <em>*</em></label><input id="a_title" placeholder="what was it"></div>
+        <div class="f"><label>Status</label><input id="a_status" autocomplete="off"></div>
+
+        <!-- deal-support only -->
+        <div class="sec dealonly">Customer &amp; deal</div>
+        <div class="f c2 dealonly"><label>Customer / opportunity</label>
+          <input id="a_oppPick" autocomplete="off" placeholder="type a customer name…">
+          <input type="hidden" id="a_opp"><input type="hidden" id="a_custFree">
+          <span class="hint">Pick one, or type a new customer and choose what to do with it. Linking moves the opportunity's stage, next action and follow-up forward.</span></div>
+        <div class="f dealonly"><label>Stage after this</label><input id="a_stage" autocomplete="off"></div>
+        <div class="f dealonly"><label>Product</label><input id="a_product" autocomplete="off"></div>
+        <div class="f c2 dealonly"><label>Next action</label><input id="a_next"></div>
+        <div class="f dealonly"><label>Follow-up date</label><input type="date" id="a_follow"></div>
+
+        <!-- enablement only -->
+        <div class="sec enableonly">Audience &amp; delivery</div>
+        <div class="f c2 enableonly"><label>Category</label><input id="a_cat" autocomplete="off"></div>
+        <div class="f enableonly"><label>Level</label><input id="a_level" autocomplete="off">
+          <span class="hint" id="a_tierHint"></span></div>
+        <div class="f enableonly"><label>Duration</label><input id="a_dur" placeholder="auto"></div>
+        <div class="f c4 enableonly"><label>Target audience</label><div class="cbs" id="a_aud"></div></div>
+        <div class="f enableonly"><label># Registrations</label><input type="number" min="0" id="a_regs"></div>
+        <div class="f enableonly"><label># Attendees</label><input type="number" min="0" id="a_att"></div>
+        <div class="f enableonly"><label># Unique partners</label><input type="number" min="0" id="a_uniq">
+          <span class="hint">Distinct partner organisations in the room.</span></div>
+        <div class="f ro enableonly"><label>Show rate / spread</label><input id="a_conv" readonly></div>
+        <div class="f c4 enableonly"><label>Registration / invite link</label><input id="a_link" placeholder="https://…"></div>
+
+        <div class="sec">Who &amp; where</div>
+        <div class="f"><label>Mode</label><input id="a_mode" autocomplete="off"></div>
+        <div class="f"><label>Zone</label><input id="a_zone" autocomplete="off"></div>
+        <div class="f c2"><label>City</label><input id="a_loc" list="dl_city"><datalist id="dl_city"></datalist></div>
+        <div class="f c2"><label>Partner / distributor</label><input id="a_partner" list="dl_ptrall"><datalist id="dl_ptrall"></datalist></div>
+        <div class="f c2"><label>Veeam stakeholder</label><input id="a_stake" list="dl_stake"><datalist id="dl_stake"></datalist></div>
+
+        <div class="sec">Notes</div>
+        <div class="f c2"><label>Notes</label><textarea id="a_remarks"></textarea></div>
+        <div class="f c2"><label>Outcome</label><textarea id="a_outcome" placeholder="Leads, follow-ups, feedback…"></textarea></div>
+        <div class="f c4" style="flex-direction:row;align-items:center;gap:8px">
+          <input type="checkbox" id="a_block" style="width:auto" checked>
+          <label for="a_block" style="font-weight:500;font-size:12.5px">Also mark these hours <b>Busy</b> on my availability</label>
+        </div>
+      </div>
+    </div>
+    <div class="mo-f">
+      <button class="btn dg" id="actDel" style="margin-right:auto">Delete</button>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn" id="actSaveIcs">Save &amp; .ics</button>
+      <button class="btn" id="actSaveNew">Save &amp; add another</button>
+      <button class="btn p" id="actSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== OPPORTUNITY FORM ==================== -->
+<div class="ov" id="ovOpp">
+  <div class="mo">
+    <div class="mo-h"><h2 id="oppTitle">New opportunity</h2><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <div class="err" id="oppErr"></div>
+      <div class="fg">
+        <div class="sec">Opportunity</div>
+        <div class="f c2"><label>Customer <em>*</em></label><input id="o_customer" list="dl_cust"><datalist id="dl_cust"></datalist></div>
+        <div class="f c2"><label>Opportunity name</label><input id="o_name" placeholder="auto: Customer - Product"></div>
+        <div class="f"><label>Industry</label><input id="o_industry" autocomplete="off"></div>
+        <div class="f"><label>Zone</label><input id="o_zone" autocomplete="off"></div>
+        <div class="f c2"><label>Location</label><input id="o_location" list="dl_city"></div>
+        <div class="f c2"><label>Internal sales / Veeam stakeholder</label><input id="o_stake" list="dl_stake"></div>
+        <div class="f c2"><label>Stage</label><input id="o_stage" autocomplete="off"></div>
+
+        <div class="sec">Contact</div>
+        <div class="f c2"><label>Contact person</label><input id="o_cperson"></div>
+        <div class="f"><label>Contact number</label><input id="o_cnumber"></div>
+        <div class="f"><label>Contact person email</label><input id="o_cemail" type="email"></div>
+
+        <div class="sec">Partner</div>
+        <div class="f c2"><label>Partner</label><input id="o_partner" list="dl_ptr"><datalist id="dl_ptr"></datalist></div>
+        <div class="f c2"><label>Partner sales</label><input id="o_psales"></div>
+        <div class="f c2"><label>Partner pre-sales</label><input id="o_ppresales"></div>
+        <div class="f c2"><label>Partner pre-sales contact</label><input id="o_ppcontact"></div>
+
+        <div class="sec">From the activity log <span style="text-transform:none;letter-spacing:0;font-weight:500">— read-only, always the latest</span></div>
+        <div class="f ro"><label>Product</label><input id="o_product" readonly></div>
+        <div class="f ro"><label>Next action</label><input id="o_next" readonly></div>
+        <div class="f ro"><label>Follow-up</label><input id="o_follow" readonly></div>
+        <div class="f ro"><label>Activity history</label><input id="o_info" readonly></div>
+        <div class="f c4"><span class="hint">These four come from this opportunity's most recent activity, so they
+          can never disagree with the log. To change them, log an activity.</span></div>
+      </div>
+    </div>
+    <div class="mo-f">
+      <button class="btn dg" id="oppDel" style="margin-right:auto">Delete</button>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn" id="oppSaveLog">Save &amp; log an activity</button>
+      <button class="btn p" id="oppSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== OPPORTUNITY DETAIL ==================== -->
+<div class="ov" id="ovView">
+  <div class="mo md">
+    <div class="mo-h"><h2 id="vTitle">Opportunity</h2><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <dl class="dl" id="vBody"></dl>
+      <h3 style="font-size:12px;margin:16px 0 2px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">Activity history</h3>
+      <div class="tl" id="vTimeline"></div>
+    </div>
+    <div class="mo-f">
+      <button class="btn" data-close>Close</button>
+      <button class="btn" id="vLog">Log an activity</button>
+      <button class="btn p" id="vEdit">Edit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DAY EDITOR ==================== -->
+<div class="ov" id="ovDay">
+  <div class="mo sm">
+    <div class="mo-h"><h2 id="dTitle">Day</h2><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <div class="fg" style="grid-template-columns:repeat(2,1fr)">
+        <div class="f"><label>Full-day status</label><select id="d_full"></select>
+          <span class="hint">Replaces the slot row for travel and holidays.</span></div>
+        <div class="f"><label>Travel city</label><input id="d_city" placeholder="e.g. Bangalore" list="dl_city3">
+          <datalist id="dl_city3"></datalist>
+          <span class="hint">Shown with Travelling, and drives "Where I will be".</span></div>
+        <div class="f" style="grid-column:span 2"><label>Notes / description</label><textarea id="d_notes"
+          placeholder="e.g. Partner meetings and customer visit"></textarea>
+          <span class="hint">Shown next to Travelling on the availability grid.</span></div>
+        <div class="f" style="grid-column:span 2"><div class="note" id="d_preview"></div></div>
+      </div>
+    </div>
+    <div class="mo-f"><button class="btn" data-close>Cancel</button><button class="btn p" id="dApply">Apply</button></div>
+  </div>
+</div>
+
+<!-- ==================== PARTNER FORM ==================== -->
+<div class="ov" id="ovPtr">
+  <div class="mo sm">
+    <div class="mo-h"><h2 id="ptrTitle">Partner</h2><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <div class="err" id="ptrErr"></div>
+      <div class="fg" style="grid-template-columns:repeat(2,1fr)">
+        <div class="f" style="grid-column:span 2"><label>Organisation name <em>*</em></label><input id="p_name"></div>
+        <div class="f"><label>Type</label><input id="p_type" autocomplete="off"></div>
+        <div class="f"><label>Tier</label><input id="p_tier" autocomplete="off">
+          <span class="hint">Foundation training targets Registered &amp; Silver, Advanced targets Gold &amp; Platinum.</span></div>
+        <div class="f"><label>Primary zone</label><input id="p_zone" autocomplete="off"></div>
+        <div class="f"><label>Veeam owner</label><input id="p_owner" list="dl_stake"></div>
+        <div class="f" style="grid-column:span 2"><label>Notes</label><textarea id="p_notes"></textarea></div>
+      </div>
+    </div>
+    <div class="mo-f">
+      <button class="btn dg" id="ptrDel" style="margin-right:auto">Delete</button>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn p" id="ptrSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== BULK EDIT ==================== -->
+<div class="ov" id="ovBulk">
+  <div class="mo md">
+    <div class="mo-h"><h2 id="bkTitle">Edit selected</h2><button class="x" data-close>&times;</button></div>
+    <div class="mo-b">
+      <div class="err" id="bkErr"></div>
+      <div class="note" style="margin-bottom:12px" id="bkNote"></div>
+      <div class="fg" id="bkFields" style="grid-template-columns:repeat(2,1fr)"></div>
+    </div>
+    <div class="mo-f">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn p" id="bkApply">Apply to selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== RENAME A LIST VALUE ==================== -->
+<div class="ov" id="ovRename">
+  <div class="mo sm">
+    <div class="mo-h"><h2>Rename everywhere</h2><button class="x" data-close>&times;</button></div>
+    <div class="mo-b">
+      <div class="err" id="rnErr"></div>
+      <div class="note" style="margin-bottom:12px" id="rnNote"></div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="f ro"><label>Current value</label><input id="rn_from" readonly></div>
+        <div class="f"><label>New value <em>*</em></label><input id="rn_to" list="dl_rn">
+          <datalist id="dl_rn"></datalist>
+          <span class="hint">Type an existing value to <b>merge</b> the two together.</span></div>
+      </div>
+    </div>
+    <div class="mo-f">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn p" id="rnGo">Rename everywhere</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== WEEKLY TEMPLATE ==================== -->
+<div class="ov" id="ovTpl">
+  <div class="mo md">
+    <div class="mo-h"><h2>My usual week</h2><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <div class="note" style="margin-bottom:12px">
+        Set the shape of a normal week once. <b>Apply my usual week</b> then fills any month in one click,
+        and only touches slots you have not already set.
+      </div>
+      <div class="brush" style="margin-bottom:10px">
+        <span style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px">Brush</span>
+        <button class="bsw free on" data-tbrush="Free">Free</button>
+        <button class="bsw busy" data-tbrush="Busy">Busy</button>
+        <button class="bsw personal" data-tbrush="Personal">Personal</button>
+        <button class="bsw clear" data-tbrush="">Clear</button>
+      </div>
+      <div class="avwrap"><div id="tplGrid"></div></div>
+    </div>
+    <div class="mo-f">
+      <button class="btn" id="tplClear" style="margin-right:auto">Clear template</button>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn p" id="tplSave">Save template</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== IMPORT ==================== -->
+<div class="ov" id="ovImp">
+  <div class="mo md">
+    <div class="mo-h"><h2>First-time data import</h2><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <div class="ok" id="impOk"></div>
+      <div class="err" id="impErr"></div>
+      <div class="note" style="margin-bottom:12px">
+        Use once, to load your migrated workbook into the empty Sheet. Pick the data file you were
+        given — it is called <b>channel-command-center-data-…json</b> (whatever version number it
+        carries). <b>This replaces everything in the Sheet.</b>
+      </div>
+      <input type="file" id="impFile" accept=".json,application/json" style="margin-bottom:10px">
+      <textarea id="impTxt" placeholder="…or paste JSON here"
+        style="width:100%;height:140px;border:1px solid var(--line);border-radius:8px;padding:9px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px"></textarea>
+      <div class="src" id="impPreview" style="margin-top:8px"></div>
+    </div>
+    <div class="mo-f"><button class="btn" data-close>Cancel</button><button class="btn p" id="impGo" disabled>Import</button></div>
+  </div>
+</div>
+
+<!-- ==================== SETTINGS ==================== -->
+<div class="ov" id="ovSet">
+  <div class="mo sm">
+    <div class="mo-h"><h2>Connection &amp; token</h2><button class="x" data-close>×</button></div>
+    <div class="mo-b">
+      <div class="ok" id="setOk"></div>
+      <div class="err" id="setErr"></div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="f ro"><label>Web App URL (from config.js)</label><input id="s_url" readonly></div>
+        <div class="f"><label>Access token</label><input id="s_tok" type="password">
+          <span class="hint">Stored in this browser only, never in the repository.</span></div>
+        <div class="f" style="flex-direction:row;align-items:center;gap:8px">
+          <input type="checkbox" id="s_remember" style="width:auto">
+          <label for="s_remember" style="font-weight:500;font-size:12.5px">Remember me on this device</label>
+        </div>
+      </div>
+    </div>
+    <div class="mo-f">
+      <button class="btn dg" id="sForget" style="margin-right:auto">Forget &amp; lock</button>
+      <button class="btn" data-close>Close</button>
+      <button class="btn" id="sTest">Test</button>
+      <button class="btn p" id="sSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Asked only when a new value needs a rule attached to it: a new activity
+     type needs a kind, a new pipeline stage needs open-or-closed. -->
+<div class="askbox" id="askBox">
+  <div class="card">
+    <h3 id="askTitle"></h3>
+    <p id="askBody"></p>
+    <div class="opts" id="askOpts"></div>
+    <div class="foot"><button type="button" id="askCancel">Cancel — don't add it</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/panels.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
