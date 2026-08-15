@@ -533,13 +533,39 @@ function oppLabel(o) {
   return (!n || n === c) ? (c || n || o.id) : c + ' — ' + n;
 }
 
-function fillOppCombo() {
-  var opps = S.opportunities.slice().sort(function (a, b) {
-    return String(a.customer || '').localeCompare(String(b.customer || ''));
+/* The customer field. Typing a customer nobody has heard of offers to start a
+   deal for them. Picking a known one narrows the opportunity list below it. */
+function fillCustCombo() {
+  var names = {};
+  S.opportunities.forEach(function (o) { if (o.customer) names[o.customer] = 1; });
+  S.activities.forEach(function (a) { if (a.customer) names[a.customer] = 1; });
+  Combo.set('#a_customer', Object.keys(names).sort(), {
+    allowNew: true,
+    onNew: function (v) { newCustomer(v); },
+    onPick: function (v, isNew) {
+      if (isNew) return;                       /* newCustomer handles it */
+      $('#a_custFree').value = v;
+      fillOppCombo();                          /* only this customer's deals */
+      /* One deal for this customer? Then there is nothing to choose. */
+      var mine = S.opportunities.filter(function (o) { return o.customer === v; });
+      if (mine.length === 1) setOppPick(mine[0].id);
+      else if (!mine.some(function (o) { return o.id === $('#a_opp').value; })) setOppPick('');
+      pullContact();
+      syncAct();
+    }
   });
+}
+
+/* Opportunities, narrowed to the customer once you have named one. */
+function fillOppCombo() {
+  var cust = String($('#a_customer') ? $('#a_customer').value : '').trim();
+  var opps = S.opportunities.filter(function (o) { return !cust || o.customer === cust; })
+    .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
   oppLabelToId = {};
   var items = opps.map(function (o) {
-    var base = oppLabel(o), lab = base, n = 2;
+    /* Once the customer is named, repeating it in every row is just noise. */
+    var base = cust ? (String(o.name || '').trim() || o.customer || o.id) : oppLabel(o);
+    var lab = base, n = 2;
     while (oppLabelToId[lab]) lab = base + ' (' + (n++) + ')';   /* two deals, same name */
     oppLabelToId[lab] = o.id;
     return lab;
@@ -547,14 +573,44 @@ function fillOppCombo() {
   Combo.set('#a_oppPick', items, {
     blank: '— not linked to an opportunity —',
     allowNew: true,
-    onNew: function (v) { newCustomer(v); },
+    onNew: function (v) { newOppNamed(v); },
     onPick: function (v, isNew) {
-      if (isNew) return;                       /* newCustomer sets the fields */
+      if (isNew) return;
       $('#a_opp').value = oppLabelToId[v] || '';
-      $('#a_custFree').value = '';
+      var o = S.oppMap[$('#a_opp').value];
+      if (o && o.customer) { $('#a_customer').value = o.customer; $('#a_custFree').value = o.customer; }
+      pullContact();
       syncAct();
     }
   });
+}
+
+/* Show the contact the opportunity already holds, without wiping something you
+   have just typed by hand. */
+function pullContact() {
+  var o = S.oppMap[$('#a_opp').value];
+  if (!o) return;
+  if (!$('#a_contact').value) $('#a_contact').value = o.contactPerson || '';
+  if (!$('#a_email').value) $('#a_email').value = o.contactEmail || '';
+  var hint = $('#a_contactHint');
+  if (hint) hint.textContent = (o.contactPerson || o.contactEmail)
+    ? 'From ' + o.customer + '. Change it here and the opportunity is updated.'
+    : "Saved on the customer's opportunity, so it fills itself in next time.";
+}
+
+/* You typed an opportunity name that does not exist yet, for a customer that
+   might. Make the deal under whatever customer is named above. */
+function newOppNamed(name) {
+  var v = String(name || '').trim();
+  if (!v) return Promise.resolve(false);
+  var cust = String($('#a_customer').value || '').trim();
+  if (!cust) {
+    A.toast('Put the customer name in first, then name the deal', 5000);
+    $('#a_oppPick').value = '';
+    $('#a_customer').focus();
+    return Promise.resolve(false);
+  }
+  return createOpp(cust, v).then(function (rec) { return !!rec; });
 }
 
 /* Show whichever record the hidden id points at. */
@@ -563,10 +619,83 @@ function setOppPick(id) {
   var o = id ? S.oppMap[id] : null;
   var lab = '';
   if (o) {
-    lab = Object.keys(oppLabelToId).filter(function (k) { return oppLabelToId[k] === id; })[0] || oppLabel(o);
+    lab = Object.keys(oppLabelToId).filter(function (k) { return oppLabelToId[k] === id; })[0];
+    if (lab == null) lab = String($('#a_customer') && $('#a_customer').value || '').trim()
+      ? (String(o.name || '').trim() || o.customer || '') : oppLabel(o);
   }
   if ($('#a_oppPick')) $('#a_oppPick').value = lab;
   if (!o) $('#a_custFree').value = $('#a_custFree').value || '';
+}
+
+/* Older deal-support rows kept the customer only inside the title, in the form
+   "Acme Corp — Meeting". Recover it so opening one of those to edit does not
+   demand you retype a name that is sitting right there. */
+function customerFromTitle(title, type) {
+  var t = String(title || '').trim();
+  if (!t) return '';
+  var suffix = ' — ' + String(type || '').trim();
+  if (type && t.length > suffix.length && t.slice(-suffix.length) === suffix)
+    return t.slice(0, -suffix.length).trim();
+  var i = t.indexOf(' — ');
+  return i > 0 ? t.slice(0, i).trim() : '';
+}
+
+/* Who the activity is for. Deal support has its own Customer name field; for
+   everything else the customer only exists via a linked opportunity. */
+function dealCustomer(kind, o) {
+  if (kind === 'Deal support')
+    return String($('#a_customer').value || '').trim() || (o ? o.customer : '');
+  return o ? o.customer : '';
+}
+
+/* Deal support does not ask for a title, so build one that reads properly in
+   the log, the calendar and the .ics you send to Outlook. */
+function actTitle(kind, o) {
+  var typed = String($('#a_title').value || '').trim();
+  if (kind !== 'Deal support') return typed;
+  var cust = String($('#a_customer').value || '').trim() || (o ? o.customer : '');
+  var deal = o ? String(o.name || '').trim() : '';
+  var type = String($('#a_type').value || '').trim();
+  if (!cust) return typed || type;
+  /* "Acme Corp — Demo", or "Acme Corp — Renewal FY27 — Demo" when the deal has
+     a name of its own worth showing. */
+  return cust + (deal && deal !== cust ? ' — ' + deal : '') + (type ? ' — ' + type : '');
+}
+
+/* Make an opportunity from what the form already knows, so you are not
+   retyping the zone, city and partner you have just filled in. */
+function createOpp(customer, dealName) {
+  var rec = A.normOpp({
+    id: A.uid('O-'),
+    customer: customer,
+    name: dealName || customer,
+    stage: (A.L.stage && A.L.stage[0]) || 'Lead',
+    zone: $('#a_zone').value || '',
+    location: $('#a_loc').value || '',
+    partner: $('#a_partner').value || '',
+    veeamStakeholder: $('#a_stake').value || '',
+    contactPerson: $('#a_contact').value || '',
+    contactEmail: $('#a_email').value || ''
+  });
+  return S.api('saveOpportunity', rec).then(function () {
+    S.opportunities.push(rec);
+    S.reindex();
+    $('#a_customer').value = customer;
+    $('#a_custFree').value = customer;
+    fillCustCombo();
+    fillCustCombo();
+  fillOppCombo();
+    setOppPick(rec.id);
+    syncAct();
+    A.toast('Opportunity created for ' + customer + ' — add the detail in Pipeline when you have it', 5000);
+    return rec;
+  }).catch(function (e) {
+    /* Do not silently drop what they typed just because the Sheet said no. */
+    $('#a_custFree').value = customer;
+    $('#a_opp').value = '';
+    A.toast('Could not create the opportunity: ' + e.message + ' — the name is still on this activity', 7000);
+    return null;
+  });
 }
 
 /* You typed a customer nobody has heard of. Two sensible things to do. */
@@ -580,46 +709,22 @@ function newCustomer(name) {
      { key: 'name', label: 'Just record the name on this activity',
        note: 'Nothing is added to the Pipeline.' }]
   ).then(function (choice) {
-    if (!choice) { $('#a_oppPick').value = ''; $('#a_opp').value = ''; $('#a_custFree').value = ''; return false; }
-
+    if (!choice) {
+      $('#a_customer').value = ''; $('#a_oppPick').value = '';
+      $('#a_opp').value = ''; $('#a_custFree').value = '';
+      return false;
+    }
     if (choice === 'name') {
       $('#a_opp').value = '';
       $('#a_custFree').value = v;
-      $('#a_oppPick').value = v;
-      if (!$('#a_title').value) $('#a_title').value = v + ' — ' + $('#a_type').value;
+      $('#a_customer').value = v;
+      $('#a_oppPick').value = '';
+      fillOppCombo();
+      syncAct();
       A.toast('“' + v + '” will be saved on this activity');
       return true;
     }
-
-    /* Build the opportunity from what the form already knows, so you are not
-       retyping zone and partner you have just filled in. */
-    var rec = A.normOpp({
-      id: A.uid('O-'),
-      customer: v,
-      name: v,
-      stage: (A.L.stage && A.L.stage[0]) || 'Lead',
-      zone: $('#a_zone').value || '',
-      location: $('#a_loc').value || '',
-      partner: $('#a_partner').value || '',
-      veeamStakeholder: $('#a_stake').value || ''
-    });
-    return S.api('saveOpportunity', rec).then(function () {
-      S.opportunities.push(rec);
-      S.reindex();
-      fillOppCombo();
-      setOppPick(rec.id);
-      $('#a_custFree').value = '';
-      if (!$('#a_title').value) $('#a_title').value = v + ' — ' + $('#a_type').value;
-      syncAct();
-      A.toast('Opportunity created for ' + v + ' — add the detail in Pipeline when you have it', 5000);
-      return true;
-    }).catch(function (e) {
-      /* Do not silently drop what they typed just because the Sheet said no. */
-      $('#a_custFree').value = v;
-      $('#a_opp').value = '';
-      A.toast('Could not create the opportunity: ' + e.message + ' — the name is still on this activity', 7000);
-      return false;
-    });
+    return createOpp(v, v).then(function (rec) { return !!rec; });
   });
 }
 
@@ -1269,6 +1374,9 @@ function applyKind() {
   var isEn = kind === 'Enablement', isDeal = kind === 'Deal support';
   $$('.enableonly').forEach(function (e) { e.classList.toggle('hide', !isEn); });
   $$('.dealonly').forEach(function (e) { e.classList.toggle('hide', !isDeal); });
+  /* Deal support asks for the customer instead of a title — the title is built
+     from the customer and the type, so there is nothing useful to type twice. */
+  $$('.notdeal').forEach(function (e) { e.classList.toggle('hide', isDeal); });
 }
 function openAct(id, quickType, presetDate) {
   editAct = id || null;
@@ -1288,6 +1396,16 @@ function openAct(id, quickType, presetDate) {
   v('#a_status', r ? r.status : (((presetDate || A.today()) > A.today()) ? 'Planned' : 'Completed'));
   setOppPick(r ? r.oppId : '');
   $('#a_custFree').value = (r && !r.oppId) ? (r.customer || '') : '';
+  /* Customer name comes from the linked deal when there is one, otherwise from
+     whatever was typed straight onto the activity. */
+  var oppOf = r && r.oppId ? S.oppMap[r.oppId] : null;
+  v('#a_customer', (oppOf && oppOf.customer) || (r && r.customer) ||
+                   (r ? customerFromTitle(r.title, r.type) : ''));
+  v('#a_contact', (oppOf && oppOf.contactPerson) || '');
+  v('#a_email', (oppOf && oppOf.contactEmail) || '');
+  fillOppCombo();
+  if (r && r.oppId) setOppPick(r.oppId);
+  pullContact();
   v('#a_stage', r ? r.stage : '');
   v('#a_product', r ? r.product : '');
   v('#a_next', r ? r.nextAction : '');
@@ -1337,7 +1455,19 @@ function syncAct() {
     if (!$('#a_loc').value) $('#a_loc').value = o.location || '';
     if (!$('#a_stake').value) $('#a_stake').value = o.veeamStakeholder || '';
     if (!$('#a_product').value) $('#a_product').value = o.product || '';
-    if (!$('#a_title').value) $('#a_title').value = o.customer + ' — ' + $('#a_type').value;
+    if (!$('#a_customer').value) $('#a_customer').value = o.customer || '';
+    /* Deal support builds its own title on save — see actTitle(). */
+    if (A.kindOf($('#a_type').value) !== 'Deal support' && !$('#a_title').value)
+      $('#a_title').value = o.customer + ' — ' + $('#a_type').value;
+  }
+  /* Show what will actually be filed, so the composed title is never a surprise. */
+  var ch = $('#a_custHint');
+  if (ch) {
+    var k = A.kindOf($('#a_type').value);
+    var cn = String($('#a_customer').value || '').trim();
+    ch.textContent = (k === 'Deal support' && cn)
+      ? 'Files as “' + actTitle(k, o) + '”'
+      : 'Type a new customer and you can create the deal for them on the spot.';
   }
 }
 function collectAct() {
@@ -1349,9 +1479,9 @@ function collectAct() {
   return A.normActivity({
     id: editAct || A.uid('A-'),
     date: $('#a_date').value, startTime: $('#a_start').value, endTime: $('#a_end').value,
-    type: $('#a_type').value, title: $('#a_title').value.trim(),
+    type: $('#a_type').value, title: actTitle(kind, o),
     oppId: kind === 'Deal support' ? oppId : '',
-    customer: o ? o.customer : String($('#a_custFree').value || '').trim(),
+    customer: dealCustomer(kind, o),
     status: $('#a_status').value,
     stage: kind === 'Deal support' ? $('#a_stage').value : '',
     product: $('#a_product').value,
@@ -1377,8 +1507,15 @@ function collectAct() {
 }
 function saveAct(mode) {
   var errs = [];
+  var kindNow = A.kindOf($('#a_type').value);
   if (!$('#a_date').value) errs.push('Date is required.');
-  if (!$('#a_title').value.trim()) errs.push('Title is required.');
+  if (kindNow === 'Deal support') {
+    if (!String($('#a_customer').value || '').trim()) errs.push('Customer name is required.');
+    var em = String($('#a_email').value || '').trim();
+    if (em && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) errs.push('That email address does not look right.');
+  } else if (!$('#a_title').value.trim()) {
+    errs.push('Title is required.');
+  }
   if ($('#a_start').value && $('#a_end').value && A.minsBetween($('#a_start').value, $('#a_end').value) === 0)
     errs.push('Start and end cannot be identical.');
   if (errs.length) { showErr('#actErr', errs.join(' ')); return; }
@@ -1396,6 +1533,12 @@ function saveAct(mode) {
     if (rec.stage) upd.stage = rec.stage;
     if (rec.nextAction) upd.nextAction = rec.nextAction;
     if (rec.followUpDate) upd.followUpDate = rec.followUpDate;
+    /* Contact details live on the customer, not on one meeting — so typing
+       them here keeps the master record current. Blank never wipes. */
+    var cp = String($('#a_contact').value || '').trim();
+    var ce = String($('#a_email').value || '').trim();
+    if (cp) upd.contactPerson = cp;
+    if (ce) upd.contactEmail = ce;
     var ro = A.normOpp(upd);
     S.upsert('opportunities', ro, A.normOpp);
     jobs.push(S.api('saveOpportunity', ro));
@@ -2143,7 +2286,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v13</b>';
+    ' · everything stored in your private Google Sheet · <b>v14</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */

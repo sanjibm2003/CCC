@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Channel Command Center</title>
-<meta name="app-version" content="v13">
+<meta name="app-version" content="v14">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -30,7 +30,7 @@
       <div id="diag" class="hide" style="margin-top:10px"></div>
     </div>
 
-    <div class="gatefoot" style="margin-top:10px"><b>v13</b> · built 2026-08-14</div>
+    <div class="gatefoot" style="margin-top:10px"><b>v14</b> · built 2026-08-14</div>
     <div class="gatefoot">
       Everything lives in your private Google Sheet — nothing is published in this
       website's files. Forgotten the token? Open the Sheet and use
@@ -344,15 +344,24 @@
         <div class="f"><label>Date <em>*</em></label><input type="date" id="a_date"></div>
         <div class="f"><label>Start</label><input type="time" id="a_start"></div>
         <div class="f"><label>End</label><input type="time" id="a_end"></div>
-        <div class="f c3"><label>Title <em>*</em></label><input id="a_title" placeholder="what was it"></div>
+        <div class="f c3 notdeal"><label>Title <em>*</em></label><input id="a_title" placeholder="what was it"></div>
         <div class="f"><label>Status</label><input id="a_status" autocomplete="off"></div>
 
         <!-- deal-support only -->
         <div class="sec dealonly">Customer &amp; deal</div>
-        <div class="f c2 dealonly"><label>Customer / opportunity</label>
-          <input id="a_oppPick" autocomplete="off" placeholder="type a customer name…">
-          <input type="hidden" id="a_opp"><input type="hidden" id="a_custFree">
-          <span class="hint">Pick one, or type a new customer and choose what to do with it. Linking moves the opportunity's stage, next action and follow-up forward.</span></div>
+        <div class="f c2 dealonly"><label>Customer name <em>*</em></label>
+          <input id="a_customer" autocomplete="off" placeholder="who is it for…">
+          <input type="hidden" id="a_custFree">
+          <span class="hint" id="a_custHint">Type a new customer and you can create the deal for them on the spot.</span></div>
+        <div class="f c2 dealonly"><label>Opportunity name</label>
+          <input id="a_oppPick" autocomplete="off" placeholder="which deal…">
+          <input type="hidden" id="a_opp">
+          <span class="hint">Linking moves the opportunity's stage, next action and follow-up forward.</span></div>
+        <div class="f c2 dealonly"><label>Customer contact</label>
+          <input id="a_contact" placeholder="who you dealt with">
+          <span class="hint" id="a_contactHint">Saved on the customer's opportunity, so it fills itself in next time.</span></div>
+        <div class="f c2 dealonly"><label>Customer email</label>
+          <input id="a_email" type="email" placeholder="name@company.com"></div>
         <div class="f dealonly"><label>Stage after this</label><input id="a_stage" autocomplete="off"></div>
         <div class="f dealonly"><label>Product</label><input id="a_product" autocomplete="off"></div>
         <div class="f c2 dealonly"><label>Next action</label><input id="a_next"></div>
