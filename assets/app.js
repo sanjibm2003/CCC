@@ -701,33 +701,22 @@ function createOpp(customer, dealName) {
 }
 
 /* You typed a customer nobody has heard of. Two sensible things to do. */
+/* A customer nobody has heard of. No question asked any more — the opportunity
+   is created when you save, by ensureOppForCustomer(). Here we only keep what
+   was typed and say what is going to happen. */
 function newCustomer(name) {
   var v = String(name || '').trim();
   if (!v) return Promise.resolve(false);
-  return askChoice('&ldquo;' + esc(v) + '&rdquo; is not on your list yet',
-    'Do you want a deal record for this customer, or is this a one-off where the name is all you need?',
-    [{ key: 'opp',  label: 'Create an opportunity for ' + v,
-       note: 'Adds it to the Pipeline so you can track stage and follow-ups. Fill in the rest later.' },
-     { key: 'name', label: 'Just record the name on this activity',
-       note: 'Nothing is added to the Pipeline.' }]
-  ).then(function (choice) {
-    if (!choice) {
-      $('#a_customer').value = ''; $('#a_oppPick').value = '';
-      $('#a_opp').value = ''; $('#a_custFree').value = '';
-      return false;
-    }
-    if (choice === 'name') {
-      $('#a_opp').value = '';
-      $('#a_custFree').value = v;
-      $('#a_customer').value = v;
-      $('#a_oppPick').value = '';
-      fillOppCombo();
-      syncAct();
-      A.toast('“' + v + '” will be saved on this activity');
-      return true;
-    }
-    return createOpp(v, v).then(function (rec) { return !!rec; });
-  });
+  $('#a_opp').value = '';
+  $('#a_custFree').value = v;
+  $('#a_customer').value = v;
+  $('#a_oppPick').value = '';
+  fillOppCombo();
+  syncAct();
+  var hint = $('#a_custHint');
+  if (hint && A.kindOf($('#a_type').value) === 'Deal support')
+    hint.textContent = 'New customer — an opportunity will be created for “' + v + '” when you save.';
+  return Promise.resolve(true);
 }
 
 /* ====================================================================== */
@@ -888,7 +877,7 @@ function renderLog() {
   }).join('') + '</tr>';
   $('#tblLog tbody').innerHTML = rows.length ? rows.map(function (r) {
     return '<tr data-id="' + r.id + '"' + (sel.activities[r.id] ? ' class="selrow"' : '') + '>' +
-      selCell('activities', r.id) +
+      selCell('log', r.id) +
       '<td style="white-space:nowrap;font-weight:600">' + A.niceDate(r.date) + '</td>' +
       '<td style="white-space:nowrap">' + esc(r.time || '—') + '</td>' +
       '<td>' + A.kindChip(r.kind) + '</td><td>' + A.typePill(r.type) + '</td>' +
@@ -902,7 +891,7 @@ function renderLog() {
     th.onclick = function () { var k = th.dataset.k; if (s.k === k) s.d *= -1; else { s.k = k; s.d = 1; } renderLog(); };
   });
   $$('#tblLog tbody tr[data-id]').forEach(function (tr) { tr.onclick = function () { openAct(tr.dataset.id); }; });
-  wireRowSelection('#tblLog', 'activities');
+  wireRowSelection('log');
   refreshBulkBars();
 }
 function renderCal(rows) {
@@ -1017,7 +1006,7 @@ function renderEvents() {
   }).join('') + '</tr>';
   $('#tblEv tbody').innerHTML = rows.length ? rows.map(function (r) {
     return '<tr data-id="' + r.id + '"' + (sel.activities[r.id] ? ' class="selrow"' : '') + '>' +
-      selCell('activities', r.id) +
+      selCell('events', r.id) +
       '<td style="white-space:nowrap;font-weight:600">' + A.niceDate(r.date) + '</td>' +
       '<td style="white-space:nowrap">' + esc(r.time || '—') + '</td><td>' + A.typePill(r.type) + '</td>' +
       '<td>' + (r.level ? A.colourPill(r.level, A.LEVEL_COLOR[r.level]) : '') + '</td>' +
@@ -1035,7 +1024,7 @@ function renderEvents() {
     th.onclick = function () { var k = th.dataset.k; if (s.k === k) s.d *= -1; else { s.k = k; s.d = 1; } renderEvents(); };
   });
   $$('#tblEv tbody tr[data-id]').forEach(function (tr) { tr.onclick = function () { openAct(tr.dataset.id); }; });
-  wireRowSelection('#tblEv', 'activities');
+  wireRowSelection('events');
   refreshBulkBars();
 }
 
@@ -1125,7 +1114,7 @@ function renderOppTable(rows) {
   }).join('') + '</tr>';
   $('#tblOpp tbody').innerHTML = rows.length ? rows.map(function (o) {
     return '<tr data-id="' + o.id + '"' + (sel.opportunities[o.id] ? ' class="selrow"' : '') + '>' +
-      selCell('opportunities', o.id) +
+      selCell('pipe', o.id) +
       '<td style="font-weight:650">' + esc(o.customer) + '</td>' +
       '<td class="t-title">' + esc(o.name) + '</td><td>' + A.stagePill(o.stage) + '</td>' +
       '<td>' + esc(o.product) + '</td><td>' + esc(o.industry) + '</td><td>' + esc(o.zone) + '</td>' +
@@ -1141,7 +1130,7 @@ function renderOppTable(rows) {
     th.onclick = function () { var k = th.dataset.k; if (s.k === k) s.d *= -1; else { s.k = k; s.d = 1; } renderPipe(); };
   });
   $$('#tblOpp tbody tr[data-id]').forEach(function (tr) { tr.onclick = function () { openOppView(tr.dataset.id); }; });
-  wireRowSelection('#tblOpp', 'opportunities');
+  wireRowSelection('pipe');
   refreshBulkBars();
 }
 
@@ -1547,6 +1536,42 @@ function saveAct(mode) {
     errs.push('Start and end cannot be identical.');
   if (errs.length) { showErr('#actErr', errs.join(' ')); return; }
 
+  /* Every deal-support activity is about a deal, so make sure one exists before
+     the activity is written — otherwise the activity is filed with a customer
+     name and no pipeline entry, which is the gap this closes. */
+  $('#actSave').disabled = true;
+  ensureOppForCustomer(kindNow).then(function () {
+    saveActNow(mode);
+  }).catch(function (e) {
+    $('#actSave').disabled = false;
+    showErr('#actErr', 'Could not create the opportunity: ' + esc(e.message));
+  });
+}
+
+/* Deal support with a named customer and no deal linked gets one, silently.
+   Matching is case-insensitive on the customer name, so logging three meetings
+   with the same customer links all three to one opportunity rather than
+   creating three. */
+function ensureOppForCustomer(kindNow) {
+  if (kindNow !== 'Deal support') return Promise.resolve(null);
+  if ($('#a_opp').value) return Promise.resolve(S.oppMap[$('#a_opp').value]);
+  var cust = String($('#a_customer').value || '').trim();
+  if (!cust) return Promise.resolve(null);
+
+  var existing = S.opportunities.filter(function (o) {
+    return String(o.customer || '').trim().toLowerCase() === cust.toLowerCase();
+  })[0];
+  if (existing) {
+    setOppPick(existing.id);
+    return Promise.resolve(existing);
+  }
+  return createOpp(cust, cust).then(function (rec) {
+    if (!rec) throw new Error('the Sheet rejected it');
+    return rec;
+  });
+}
+
+function saveActNow(mode) {
   var rec = collectAct();
   S.upsert('activities', rec, A.normActivity);
   if (['Internal','Partner','End Customer'].indexOf(rec.partner) === -1) ensurePartner(rec.partner, rec.partnerType);
@@ -1864,35 +1889,124 @@ function renderOutlookCard() {
 /*  at once. Only the fields you tick are written — everything else on     */
 /*  each record is left exactly as it was.                                 */
 /* ====================================================================== */
-var sel = { activities: {}, opportunities: {} };
-var bulkKind = 'activities';
+/* Selection is per TABLE, not per record type. Daily Log and Events both list
+   activities; sharing one set meant a row ticked on one tab was counted by the
+   other, and a row hidden by a filter stayed counted with nothing on screen to
+   show for it — "1 record selected" with nothing selected. */
+var sel = { log: {}, events: {}, pipe: {} };
+var BULK_TABLES = {
+  log:    { table: '#tblLog', kind: 'activities',    sfx: '' },
+  events: { table: '#tblEv',  kind: 'activities',    sfx: 'E' },
+  pipe:   { table: '#tblOpp', kind: 'opportunities', sfx: 'P' }
+};
+var bulkKind = 'activities', bulkTable = 'log';
 
-function selCount(kind) { return Object.keys(sel[kind] || {}).length; }
-function selIds(kind) { return Object.keys(sel[kind] || {}); }
-function clearSel(kind) { sel[kind] = {}; }
-function toggleSel(kind, id, on) {
-  if (on) sel[kind][id] = 1; else delete sel[kind][id];
+function selCount(t) { return Object.keys(sel[t] || {}).length; }
+function selIds(t) { return Object.keys(sel[t] || {}); }
+function clearSel(t) { sel[t] = {}; }
+function toggleSel(t, id, on) {
+  if (on) sel[t][id] = 1; else delete sel[t][id];
 }
-/** The three tables share one implementation; ids differ only by suffix. */
-function bulkBars() {
-  return [['activities', '', 'log'], ['activities', 'E', 'events'], ['opportunities', 'P', 'pipe']];
+/* Forget anything that is no longer on screen, so the count can never claim a
+   selection you cannot see or act on. */
+function pruneSel(t, visibleIds) {
+  var keep = {};
+  visibleIds.forEach(function (id) { if (sel[t][id]) keep[id] = 1; });
+  sel[t] = keep;
 }
 function refreshBulkBars() {
-  bulkBars().forEach(function (b) {
-    var kind = b[0], sfx = b[1];
-    var bar = $('#bulkBar' + sfx);
+  Object.keys(BULK_TABLES).forEach(function (t) {
+    var bar = $('#bulkBar' + BULK_TABLES[t].sfx);
     if (!bar) return;
-    var n = selCount(kind);
+    var n = selCount(t);
     bar.classList.toggle('hide', n === 0);
-    var c = $('#bulkCount' + sfx);
+    var c = $('#bulkCount' + BULK_TABLES[t].sfx);
     if (c) c.textContent = n + (n === 1 ? ' record selected' : ' records selected');
   });
 }
-function wireRowSelection(tableSel, kind) {
-  $$(tableSel + ' tbody input[data-sel]').forEach(function (cb) {
+/* Controls whose handler is attached once, at start-up.
+
+   These were all built with a working function behind them, but nothing ever
+   called it — the buttons rendered, did nothing when clicked, and no test
+   noticed because every test asked "does the function exist" rather than "is
+   anything wired to it". dead.test.js now asks the second question. */
+function wireBulkButtons() {
+  /* Bulk edit — three bars, three buttons each. */
+  Object.keys(BULK_TABLES).forEach(function (t) {
+    var sfx = BULK_TABLES[t].sfx;
+    var e = $('#bulkEdit' + sfx), d = $('#bulkDel' + sfx), c = $('#bulkClear' + sfx);
+    if (e) e.onclick = function () { openBulk(t); };
+    if (d) d.onclick = function () { deleteBulk(t); };
+    if (c) c.onclick = function () { clearSel(t); refreshBulkBars(); repaintSel(t); };
+  });
+  var apply = $('#bkApply');
+  if (apply) apply.onclick = applyBulk;
+
+  /* Dropdown lists — the whole toolbar above the list. */
+  var pick = $('#lsPick');
+  if (pick) pick.onchange = function () { lsKey = pick.value; renderLists(); };
+
+  var addVal = function () {
+    var box = $('#lsNew'), v = String(box.value || '').trim();
+    if (!v) return;
+    var cur = lsCurrent();
+    if (cur.some(function (x) { return String(x).toLowerCase() === v.toLowerCase(); })) {
+      A.toast('“' + v + '” is already on this list');
+      box.value = '';
+      return;
+    }
+    cur.push(v);
+    box.value = '';
+    lsDirty = true;
+    renderLists();
+    box.focus();
+  };
+  var addBtn = $('#lsAdd');
+  if (addBtn) addBtn.onclick = addVal;
+  var newBox = $('#lsNew');
+  if (newBox) newBox.onkeydown = function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); addVal(); }
+  };
+
+  var reset = $('#lsReset');
+  if (reset) reset.onclick = function () {
+    var def = (A.L_DEFAULT && A.L_DEFAULT[lsKey]) ? A.L_DEFAULT[lsKey].slice() : [];
+    var meta = A.EDITABLE_LISTS.filter(function (e) { return e[0] === lsKey; })[0] || ['', lsKey];
+    if (!def.length) { A.toast('“' + meta[1] + '” has no built-in default to go back to'); return; }
+    if (!confirm('Put “' + meta[1] + '” back to the built-in list?\n\n' +
+                 'Existing records keep whatever they already say — only the dropdown changes.')) return;
+    if (!lsDraft) lsDraft = {};
+    lsDraft[lsKey] = def;
+    lsDirty = true;
+    renderLists();
+  };
+
+  var save = $('#lsSave');
+  if (save) save.onclick = saveLists;
+
+  /* Rename everywhere. */
+  var rn = $('#rnGo');
+  if (rn) rn.onclick = doRename;
+}
+/* Untick without redrawing the whole table. */
+function repaintSel(t) {
+  var cfg = BULK_TABLES[t];
+  $$(cfg.table + ' tbody input[data-sel]').forEach(function (cb) {
+    cb.checked = !!sel[t][cb.dataset.sel];
+    var tr = cb.closest('tr');
+    if (tr) tr.classList.toggle('selrow', cb.checked);
+  });
+  var all = $(cfg.table + ' thead input[data-selall]');
+  if (all) all.checked = false;
+}
+function wireRowSelection(t) {
+  var tableSel = BULK_TABLES[t].table;
+  var boxes = $$(tableSel + ' tbody input[data-sel]');
+  pruneSel(t, boxes.map(function (cb) { return cb.dataset.sel; }));
+  boxes.forEach(function (cb) {
     cb.onclick = function (e) { e.stopPropagation(); };
     cb.onchange = function () {
-      toggleSel(kind, cb.dataset.sel, cb.checked);
+      toggleSel(t, cb.dataset.sel, cb.checked);
       var tr = cb.closest('tr');
       if (tr) tr.classList.toggle('selrow', cb.checked);
       refreshBulkBars();
@@ -1902,18 +2016,18 @@ function wireRowSelection(tableSel, kind) {
   });
   var all = $(tableSel + ' thead input[data-selall]');
   if (all) all.onchange = function () {
-    $$(tableSel + ' tbody input[data-sel]').forEach(function (cb) {
+    boxes.forEach(function (cb) {
       cb.checked = all.checked;
-      toggleSel(kind, cb.dataset.sel, all.checked);
+      toggleSel(t, cb.dataset.sel, all.checked);
       var tr = cb.closest('tr');
       if (tr) tr.classList.toggle('selrow', all.checked);
     });
     refreshBulkBars();
   };
 }
-function selCell(kind, id) {
+function selCell(t, id) {
   return '<td class="selcol" onclick="event.stopPropagation()"><input type="checkbox" data-sel="' + id + '"' +
-         (sel[kind][id] ? ' checked' : '') + '></td>';
+         (sel[t][id] ? ' checked' : '') + '></td>';
 }
 function selHead() { return '<th class="selcol"><input type="checkbox" data-selall></th>'; }
 
@@ -1945,9 +2059,11 @@ var BULK_FIELDS = {
     ['partnerSales', 'Partner sales', 'text', '']
   ]
 };
-function openBulk(kind) {
+function openBulk(t) {
+  var kind = BULK_TABLES[t].kind;
+  bulkTable = t;
   bulkKind = kind;
-  var n = selCount(kind);
+  var n = selCount(t);
   if (!n) { A.toast('Nothing selected'); return; }
   $('#bkErr').classList.remove('show');
   $('#bkTitle').textContent = 'Edit ' + n + ' ' + (kind === 'activities' ? 'activit' + (n === 1 ? 'y' : 'ies')
@@ -1977,14 +2093,14 @@ function openBulk(kind) {
   $('#ovBulk').classList.add('open');
 }
 function applyBulk() {
-  var kind = bulkKind;
+  var kind = bulkKind, t = bulkTable;
   var picked = $$('#bkFields [data-bk]').filter(function (c) { return c.checked; })
                  .map(function (c) { return c.dataset.bk; });
   if (!picked.length) { showErr('#bkErr', 'Tick at least one field to change.'); return; }
   var patch = {};
   picked.forEach(function (k) { patch[k] = ($('#bk_' + k).value || '').trim(); });
 
-  var ids = selIds(kind), out = [];
+  var ids = selIds(t), out = [];
   ids.forEach(function (id) {
     var rec = kind === 'activities'
       ? S.activities.filter(function (x) { return x.id === id; })[0]
@@ -2009,12 +2125,13 @@ function applyBulk() {
   S.api('bulkSave', { kind: kind, records: out }).then(function (j) {
     $('#ovBulk').classList.remove('open');
     A.toast(j.saved + ' record' + (j.saved > 1 ? 's' : '') + ' updated');
-    clearSel(kind); refresh(); refreshBulkBars();
+    clearSel(t); refresh(); refreshBulkBars();
   }).catch(function (e) { showErr('#bkErr', 'Saved locally but the Sheet said: ' + e.message); })
     .then(function () { $('#bkApply').disabled = false; });
 }
-function deleteBulk(kind) {
-  var ids = selIds(kind), n = ids.length;
+function deleteBulk(t) {
+  var kind = BULK_TABLES[t].kind;
+  var ids = selIds(t), n = ids.length;
   if (!n) return;
   var what = kind === 'activities' ? 'activities' : 'opportunities';
   if (!confirm('Delete ' + n + ' ' + what + '? This cannot be undone.' +
@@ -2022,7 +2139,7 @@ function deleteBulk(kind) {
   ids.forEach(function (id) { S.remove(kind, id); });
   S.api('bulkDelete', { kind: kind, ids: ids }).then(function (j) {
     A.toast((j.deleted || n) + ' deleted');
-    clearSel(kind); refresh(); refreshBulkBars();
+    clearSel(t); refresh(); refreshBulkBars();
   }).catch(function (e) { A.toast('Delete failed: ' + e.message, 6000); });
 }
 
@@ -2312,10 +2429,11 @@ function setTab(t) {
   render();
 }
 function start() {
+  wireBulkButtons();          /* nine buttons that had no handler until v18 */
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v17</b>';
+    ' · everything stored in your private Google Sheet · <b>v18</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */
