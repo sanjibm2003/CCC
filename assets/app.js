@@ -876,7 +876,7 @@ function renderLog() {
     return '<th data-k="' + c[0] + '">' + c[1] + (s.k === c[0] ? (s.d > 0 ? ' ▲' : ' ▼') : '') + '</th>';
   }).join('') + '</tr>';
   $('#tblLog tbody').innerHTML = rows.length ? rows.map(function (r) {
-    return '<tr data-id="' + r.id + '"' + (sel.activities[r.id] ? ' class="selrow"' : '') + '>' +
+    return '<tr data-id="' + r.id + '"' + (sel.log[r.id] ? ' class="selrow"' : '') + '>' +
       selCell('log', r.id) +
       '<td style="white-space:nowrap;font-weight:600">' + A.niceDate(r.date) + '</td>' +
       '<td style="white-space:nowrap">' + esc(r.time || '—') + '</td>' +
@@ -1005,7 +1005,7 @@ function renderEvents() {
     return '<th data-k="' + c[0] + '">' + c[1] + (s.k === c[0] ? (s.d > 0 ? ' ▲' : ' ▼') : '') + '</th>';
   }).join('') + '</tr>';
   $('#tblEv tbody').innerHTML = rows.length ? rows.map(function (r) {
-    return '<tr data-id="' + r.id + '"' + (sel.activities[r.id] ? ' class="selrow"' : '') + '>' +
+    return '<tr data-id="' + r.id + '"' + (sel.events[r.id] ? ' class="selrow"' : '') + '>' +
       selCell('events', r.id) +
       '<td style="white-space:nowrap;font-weight:600">' + A.niceDate(r.date) + '</td>' +
       '<td style="white-space:nowrap">' + esc(r.time || '—') + '</td><td>' + A.typePill(r.type) + '</td>' +
@@ -1113,7 +1113,7 @@ function renderOppTable(rows) {
     return '<th data-k="' + c[0] + '">' + c[1] + (s.k === c[0] ? (s.d > 0 ? ' ▲' : ' ▼') : '') + '</th>';
   }).join('') + '</tr>';
   $('#tblOpp tbody').innerHTML = rows.length ? rows.map(function (o) {
-    return '<tr data-id="' + o.id + '"' + (sel.opportunities[o.id] ? ' class="selrow"' : '') + '>' +
+    return '<tr data-id="' + o.id + '"' + (sel.pipe[o.id] ? ' class="selrow"' : '') + '>' +
       selCell('pipe', o.id) +
       '<td style="font-weight:650">' + esc(o.customer) + '</td>' +
       '<td class="t-title">' + esc(o.name) + '</td><td>' + A.stagePill(o.stage) + '</td>' +
