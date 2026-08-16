@@ -918,15 +918,30 @@ function renderCal(rows) {
     var ds = A.ymd(d), out = d.getMonth() !== m, wknd = d.getDay() === 0 || d.getDay() === 6;
     var acts = (byDate[ds] || []).sort(function (a, b) { return (a.startTime || '99').localeCompare(b.startTime || '99'); });
     var av = S.availMap[ds], tag = '';
+    /* A day you are away is a day you are away. When the whole day carries a
+       status, that status IS the day — showing meetings underneath it only
+       invites you to book over yourself. Everything is still in the log, and
+       the hidden items are listed on hover. */
+    var whole = shade && av && av.fullDay ? av : null;
     if (shade && av && av.fullDay) {
       var cc = A.AVAIL_COLOR[av.fullDay] || '#8b95a3';
-      var lbl = (av.fullDay === 'Travelling' && av.travelCity) ? av.travelCity : av.fullDay;
+      var lbl = A.fullDayLabel(av).short;
       tag = '<span class="dtag" style="background:' + cc + '1f;color:' + cc + '">' + esc(lbl) + '</span>';
     }
-    html += '<div class="day' + (out ? ' out' : '') + (wknd && !out ? ' wknd' : '') + (ds === td ? ' today' : '') + '">' +
-      '<div class="dnum"><span>' + d.getDate() + '</span>' + tag +
-      '<button class="dadd" data-newdate="' + ds + '" title="Log something">+</button></div>' +
-      acts.map(function (r) {
+    var body;
+    if (whole) {
+      var fdc = A.fullDayLabel(whole);
+      var col2 = A.AVAIL_COLOR[whole.fullDay] || '#8b95a3';
+      var hidden = acts.map(function (r) {
+        return (r.startTime ? A.fmt12(r.startTime) + ' ' : '') + r.title;
+      });
+      body = '<div class="fullday" style="background:' + col2 + '1f;color:' + col2 +
+        ';border-left-color:' + col2 + '" title="' +
+        esc(fdc.title + (hidden.length ? ' — also logged: ' + hidden.join('; ') : '')) + '">' +
+        esc(fdc.bare) +
+        (hidden.length ? '<span class="fdmore">' + hidden.length + ' hidden</span>' : '') + '</div>';
+    } else {
+      body = acts.map(function (r) {
         var col = A.TYPE_COLOR[r.type] || '#8b95a3';
         return '<button class="ev" data-id="' + r.id + '" style="border-left-color:' + col + ';background:' + col + '18" title="' +
           esc(r.title + ' — ' + r.type) + '">' + (r.startTime ? '<b>' + esc(A.fmt12(r.startTime)) + '</b> ' : '') +
@@ -936,7 +951,12 @@ function renderCal(rows) {
         ? S.outlookFor(ds).map(function (o) {
             return '<span class="ev olchip" title="Outlook meeting ' + A.fmt12(o.start) + '–' + A.fmt12(o.end) +
               '"><b>' + esc(A.fmt12(o.start)) + '</b> Outlook</span>';
-          }).join('') : '') + '</div>';
+          }).join('') : '');
+    }
+    html += '<div class="day' + (out ? ' out' : '') + (wknd && !out ? ' wknd' : '') + (ds === td ? ' today' : '') + '">' +
+      '<div class="dnum"><span>' + d.getDate() + '</span>' + tag +
+      '<button class="dadd" data-newdate="' + ds + '" title="Log something">+</button></div>' +
+      body + '</div>';
   }
   $('#calGrid').innerHTML = html;
   var used = uniqOf(rows, 'type');
@@ -1155,7 +1175,7 @@ function renderAvail() {
     if (av.fullDay) {
       html += '<td colspan="' + slots.length + '"><div class="slot ' + av.fullDay.toLowerCase() +
         ' fullrow" style="height:34px;line-height:34px" title="' + esc(fd.title) + '">' +
-        esc(fd.long) + '</div></td>';
+        esc(fd.long) + '</div></td>';   /* the grid has room for the note */
     } else {
       slots.forEach(function (s) {
         var v = av.slots[s] || '';
@@ -2291,7 +2311,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v15</b>';
+    ' · everything stored in your private Google Sheet · <b>v16</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */

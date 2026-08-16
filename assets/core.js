@@ -210,23 +210,54 @@ function isTimed(a) { return !!(a.startTime && a.endTime); }
  *   Travelling -> "Travelling — Bangalore · Partner meetings"
  * `short` is for the tight corner tag on the month calendar.
  */
+/* Most travel days were migrated with the city written into the day note
+   ("round table in Jammu") rather than into its own column. Rather than show
+   a bare "Travelling", look for a place you demonstrably visit — the list is
+   built from your own records, so this can only ever surface a real one, never
+   invent a city. Nothing is written back; the Sheet is left as you have it. */
+var _cityList = null;
+function knownPlaces() {
+  if (_cityList) return _cityList;
+  var s = {};
+  Store.activities.forEach(function (a) { if (a.location) s[String(a.location).trim()] = 1; });
+  Store.opportunities.forEach(function (o) { if (o.location) s[String(o.location).trim()] = 1; });
+  Store.availability.forEach(function (a) { if (a.travelCity) s[String(a.travelCity).trim()] = 1; });
+  /* Longest first, so "Navi Mumbai" wins over "Mumbai". */
+  _cityList = Object.keys(s).filter(Boolean).sort(function (a, b) { return b.length - a.length; });
+  return _cityList;
+}
+function forgetPlaces() { _cityList = null; }
+function travelCityOf(av) {
+  var c = String((av && av.travelCity) || '').trim();
+  if (c) return c;
+  var note = String((av && av.notes) || '');
+  if (!note) return '';
+  var list = knownPlaces();
+  for (var i = 0; i < list.length; i++) {
+    var re = new RegExp('\\b' + list[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (re.test(note)) return list[i];
+  }
+  return '';
+}
+
+/* Four shapes of the same thing:
+     short  a corner tag             "Jammu"
+     bare   the status, and nothing else but the place — what the calendar
+            shows, because a day you are away is not a day for meeting chips
+     long   bare plus the day note   — for the availability grid row
+     title  the full story, on hover                                        */
 function fullDayLabel(av) {
-  if (!av || !av.fullDay) return { short: '', long: '', title: '' };
-  var f = av.fullDay, city = String(av.travelCity || '').trim(), note = String(av.notes || '').trim();
-  if (f === 'Personal') {
-    return { short: 'PTO', long: 'Personal (PTO)' + (note ? ' · ' + note : ''),
-             title: 'Personal (PTO)' + (note ? ' — ' + note : '') };
-  }
-  if (f === 'Travelling') {
-    var lng = 'Travelling' + (city ? ' — ' + city : '') + (note ? ' · ' + note : '');
-    return { short: city || 'Travel', long: lng,
-             title: lng };
-  }
-  if (f === 'Holiday') {
-    return { short: 'Holiday', long: 'Holiday' + (note ? ' · ' + note : ''),
-             title: 'Holiday' + (note ? ' — ' + note : '') };
-  }
-  return { short: f, long: f + (note ? ' · ' + note : ''), title: f + (note ? ' — ' + note : '') };
+  if (!av || !av.fullDay) return { short: '', bare: '', long: '', title: '' };
+  var f = av.fullDay, city = travelCityOf(av), note = String(av.notes || '').trim();
+  var mk = function (short, bare) {
+    return { short: short, bare: bare,
+             long: bare + (note ? ' · ' + note : ''),
+             title: bare + (note ? ' — ' + note : '') };
+  };
+  if (f === 'Personal')   return mk('PTO', 'Personal (PTO)');
+  if (f === 'Travelling') return mk(city || 'Travel', 'Travelling' + (city ? ' — ' + city : ''));
+  if (f === 'Holiday')    return mk('Holiday', 'Holiday');
+  return mk(f, f);
 }
 
 function slotList() {
@@ -432,6 +463,7 @@ var Store = {
   },
 
   reindex: function () {
+    forgetPlaces();          /* travel-city lookup is derived from the data */
     var am = {}, om = {}, ab = {}, ol = {};
     this.outlook.forEach(function (o) {
       if (!o.date) return;
@@ -900,7 +932,7 @@ global.APP = {
   qOf: qOf, fyOf: fyOf, qKey: qKey, qLabel: qLabel, mOf: mOf, mKeyLabel: mKeyLabel, quarterMonths: quarterMonths,
   parseT: parseT, parseRange: parseRange, fmt12: fmt12, minsBetween: minsBetween, addMins: addMins,
   durLabel: durLabel, actMinutes: actMinutes, isTimed: isTimed, slotList: slotList, kindOf: kindOf, stageClosed: stageClosed,
-  fullDayLabel: fullDayLabel,
+  fullDayLabel: fullDayLabel, travelCityOf: travelCityOf, knownPlaces: knownPlaces,
   normActivity: normActivity, normOpp: normOpp, normAvail: normAvail, normPartner: normPartner,
   partnerKey: partnerKey,
   Store: Store, Auth: Auth, L_DEFAULT: L_DEFAULT, EDITABLE_LISTS: EDITABLE_LISTS,

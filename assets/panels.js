@@ -67,21 +67,33 @@ var PANELS = [
       .sort(function (a, b) { return (a.date + (a.startTime || '99')).localeCompare(b.date + (b.startTime || '99')); });
     var html = '<h3>Next two weeks <span>— ' + rows.length + ' activities</span></h3>';
     if (!rows.length) { el.innerHTML = html + empty('Nothing scheduled. Time to book some partner sessions.'); return; }
-    var cur = '', body = '<div class="ag">';
+    /* Group by day first. A day with a whole-day status shows that status and
+       nothing else — see renderCal() for the reasoning. */
+    var order = [], byDay = {};
     rows.forEach(function (r) {
-      if (r.date !== cur) {
-        cur = r.date;
-        var av = S.availMap[r.date];
-        var fd = A.fullDayLabel(av);
-        body += '<div class="agd' + (r.date === td ? ' today' : '') + '">' + A.longDate(r.date) +
-                (r.date === td ? ' — today' : '') + (fd.long ? esc(' · ' + fd.long) : '') + '</div>';
+      if (!byDay[r.date]) { byDay[r.date] = []; order.push(r.date); }
+      byDay[r.date].push(r);
+    });
+    var body = '<div class="ag">';
+    order.forEach(function (date) {
+      var av = S.availMap[date], fd = A.fullDayLabel(av);
+      body += '<div class="agd' + (date === td ? ' today' : '') + '"' +
+              (fd.title ? ' title="' + esc(fd.title) + '"' : '') + '>' + A.longDate(date) +
+              (date === td ? ' — today' : '') + (fd.bare ? esc(' · ' + fd.bare) : '') + '</div>';
+      if (av && av.fullDay) {
+        var n = byDay[date].length;
+        body += '<div class="agh">' + n + ' other ' + (n === 1 ? 'thing' : 'things') +
+                ' logged that day</div>';
+        return;
       }
-      var col = A.TYPE_COLOR[r.type] || '#8b95a3';
-      body += '<div class="agi" data-id="' + r.id + '" style="border-left-color:' + col + '">' +
-        '<div class="tm">' + esc(r.startTime ? A.fmt12(r.startTime) : '—') + '</div>' +
-        '<div class="bd">' + esc(r.title) +
-        '<div class="mt">' + A.kindChip(r.kind) + ' ' + esc([r.type, r.partner, r.location].filter(Boolean).join(' · ')) + '</div>' +
-        '</div></div>';
+      byDay[date].forEach(function (r) {
+        var col = A.TYPE_COLOR[r.type] || '#8b95a3';
+        body += '<div class="agi" data-id="' + r.id + '" style="border-left-color:' + col + '">' +
+          '<div class="tm">' + esc(r.startTime ? A.fmt12(r.startTime) : '—') + '</div>' +
+          '<div class="bd">' + esc(r.title) +
+          '<div class="mt">' + A.kindChip(r.kind) + ' ' + esc([r.type, r.partner, r.location].filter(Boolean).join(' · ')) + '</div>' +
+          '</div></div>';
+      });
     });
     el.innerHTML = html + body + '</div>';
     A.$$('[data-id]', el).forEach(function (x) { x.onclick = function () { global.openAct(x.dataset.id); }; });
