@@ -1171,11 +1171,15 @@ function renderAvail() {
     var fd = A.fullDayLabel(av);
     html += '<tr><td class="dcol"><div class="dlab">' + ds.slice(8) + ' ' + A.MONTHS[m] +
       (dirtyDays[ds] ? ' <span style="color:var(--amber)">•</span>' : '') + '</div>' +
-      '<div class="dsub">' + A.dowOf(ds) + (fd.long ? ' · ' + esc(fd.long) : '') + '</div></td>';
+      '<div class="dsub"' + (fd.title ? ' title="' + esc(fd.title) + '"' : '') + '>' +
+      A.dowOf(ds) + (fd.bare ? ' · ' + esc(fd.bare) : '') + '</div></td>';
     if (av.fullDay) {
       html += '<td colspan="' + slots.length + '"><div class="slot ' + av.fullDay.toLowerCase() +
         ' fullrow" style="height:34px;line-height:34px" title="' + esc(fd.title) + '">' +
-        esc(fd.long) + '</div></td>';   /* the grid has room for the note */
+        esc(fd.bare) + '</div></td>';
+        /* Status and place, nothing else. The day note often lists the very
+           meetings the whole-day status is meant to replace — it stays on
+           hover and in the Day editor. */
     } else {
       slots.forEach(function (s) {
         var v = av.slots[s] || '';
@@ -1253,8 +1257,8 @@ function syncDayHint() {
   if (!el) return;
   var fd = A.fullDayLabel({ fullDay: $('#d_full').value, travelCity: $('#d_city').value.trim(),
                             notes: $('#d_notes').value.trim() });
-  el.innerHTML = fd.long
-    ? 'Shows as <b>' + esc(fd.long) + '</b> on the grid, and <b>' + esc(fd.short) +
+  el.innerHTML = fd.bare
+    ? 'Shows as <b>' + esc(fd.bare) + '</b> on the grid, and <b>' + esc(fd.short) +
       '</b> as the tag on the month calendar.'
     : 'No whole-day status — the slot row stays editable.';
 }
@@ -2311,7 +2315,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v16</b>';
+    ' · everything stored in your private Google Sheet · <b>v17</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */
