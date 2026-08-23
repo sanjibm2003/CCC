@@ -2508,7 +2508,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v20</b>';
+    ' · everything stored in your private Google Sheet · <b>v21</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */
