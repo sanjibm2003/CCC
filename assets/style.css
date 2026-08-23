@@ -477,3 +477,19 @@ tr.selrow:hover{background:var(--g-l)!important}
   font-size:11.5px;font-weight:700;line-height:1.3;display:flex;flex-direction:column;gap:2px}
 .day .fullday .fdmore{font-size:9.5px;font-weight:600;opacity:.72;letter-spacing:.2px}
 .ag .agh{padding:5px 9px 8px;font-size:11px;color:var(--ink3);font-style:italic}
+
+/* Click a chart or a data-health line and this says what you are looking at. */
+.drillbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 12px;
+  background:var(--g-l);border:1px solid #BCEBD0;border-radius:9px;padding:8px 12px;font-size:12.5px}
+.drillbar .dl{color:var(--ink2)}
+.drillbar b{color:var(--g-d)}
+.drillbar .dn{color:var(--ink3);font-size:11.5px}
+.drillbar .btn{margin-left:auto}
+
+/* Meetings listed beside a whole-day status on the Availability grid. */
+.av .fullrow{display:flex;align-items:center;gap:8px;padding:0 10px;overflow:hidden}
+.av .fdacts{display:flex;gap:5px;overflow:hidden;flex:1;min-width:0}
+.av .fdact{border:0;background:rgba(255,255,255,.72);border-radius:5px;padding:2px 7px;
+  font-size:11px;line-height:1.5;white-space:nowrap;cursor:pointer;color:var(--ink);
+  max-width:200px;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.av .fdact:hover{background:#fff;box-shadow:0 1px 3px rgba(29,31,42,.18)}

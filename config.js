@@ -1,5 +1,5 @@
 /* =========================================================================
-   Channel Command Center — v17  (built 2026-08-14)
+   Channel Command Center — v19  (built 2026-08-14)
    -------------------------------------------------------------------------
    CONFIG — the only file you need to edit.
    Nothing here is secret; your access token is never stored in this file.
@@ -7,6 +7,14 @@
 window.SITE_CONFIG = {
 
   /* --- who this workspace belongs to -------------------------------- */
+  /* Where you are based. Any IN-PERSON activity in a city that is not on this
+     list counts as travel — that is how travel time is worked out. Add any
+     other city you can reach without travelling. */
+  homeBase: ['Mumbai', 'Navi Mumbai'],
+  /* Length of a normal working day, used to split a travel day into meeting
+     time and everything else. */
+  workingDayHours: 9,
+
   ownerName:  'Sanjib Mondal',
   ownerRole:  'Channel Systems Engineer · Veeam Software',
   ownerEmail: 's.mondal@veeam.com',
@@ -15,7 +23,7 @@ window.SITE_CONFIG = {
   /* --- Google Sheet backend ----------------------------------------
      Paste the Apps Script Web App URL here after deploying it.
      Must end in /exec.  See apps-script/SETUP.md                      */
-  apiUrl: 'https://script.google.com/macros/s/AKfycbynma3mKI3sNWvPlEZFXBm-FxeD_lTjwQ396Qi7ihnGCJN9zKK5169n6CXBu1Z430V3/exec',
+  apiUrl: 'https://script.google.com/macros/s/AKfycbxNUB9XBoVOMi4RoTu478mYAoqLlFdfCWAFWGtc4LdAe16-xXRcpIRdXUz3ksTh-iek/exec',
 
   /* --- availability grid ------------------------------------------- */
   dayStart: '09:00',

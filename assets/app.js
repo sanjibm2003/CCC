@@ -68,7 +68,50 @@ function gf() {
            stake: $('#fStake').value, partner: $('#fPartner').value,
            text: $('#fSearch').value.trim().toLowerCase(), range: periodRange() };
 }
+/* ====================================================================== */
+/*  DRILL — "show me exactly those records"                               */
+/* ====================================================================== */
+/* Charts and the data-health list can name a precise set of records. A drill
+   holds that set by id and is applied on top of whatever filters are set, so
+   clicking a bar takes you to the rows behind it rather than to the tab in
+   general. One concept serves both. */
+var drill = null;      /* { label, what: 'activities'|'opportunities', ids: {} } */
+
+function setDrill(label, what, rows, tab) {
+  var ids = {};
+  (rows || []).forEach(function (r) { ids[r.id] = 1; });
+  drill = { label: label, what: what, ids: ids, n: Object.keys(ids).length };
+  if (!drill.n) { drill = null; A.toast('Nothing to show for “' + label + '”'); return; }
+  clearSel('log'); clearSel('events'); clearSel('pipe');
+  renderDrillBar();
+  if (tab) setTab(tab);
+  refresh();
+}
+function clearDrill() {
+  drill = null;
+  renderDrillBar();
+  refresh();
+}
+function drillAllows(what, id) {
+  if (!drill) return true;
+  if (drill.what !== what) return true;    /* a drill on activities must not hide opportunities */
+  return !!drill.ids[id];
+}
+function renderDrillBar() {
+  var bar = $('#drillBar');
+  if (!bar) return;
+  bar.classList.toggle('hide', !drill);
+  if (!drill) return;
+  bar.innerHTML = '<span class="dl">Showing</span> <b>' + esc(drill.label) + '</b>' +
+    '<span class="dn">' + drill.n + ' ' +
+    (drill.what === 'activities' ? (drill.n === 1 ? 'activity' : 'activities')
+                                 : (drill.n === 1 ? 'opportunity' : 'opportunities')) + '</span>' +
+    '<button class="btn sm" id="drillClear">Show everything again</button>';
+  $('#drillClear').onclick = clearDrill;
+}
+
 function matchAct(r) {
+  if (!drillAllows('activities', r.id)) return false;
   var f = gf();
   if (f.range && (r.date < f.range[0] || r.date > f.range[1])) return false;
   if (f.q && A.qKey(r.date) !== f.q) return false;
@@ -84,6 +127,7 @@ function matchAct(r) {
   return true;
 }
 function matchOpp(o) {
+  if (!drillAllows('opportunities', o.id)) return false;
   var f = gf();
   if (f.zone && o.zone !== f.zone) return false;
   if (f.stake && o.veeamStakeholder !== f.stake) return false;
@@ -837,6 +881,7 @@ function saveLayout() {
     .then(function () { $('#pSave').disabled = false; });
 }
 window.renderDash = renderDash;
+window.setDrill = setDrill;      /* panels.js drills through this */
 window.gotoPipeline = function (stage) {
   setTab('pipe');
   $('#pStage').value = stage || '';
@@ -917,31 +962,27 @@ function renderCal(rows) {
       var lbl = A.fullDayLabel(av).short;
       tag = '<span class="dtag" style="background:' + cc + '1f;color:' + cc + '">' + esc(lbl) + '</span>';
     }
-    var body;
+    /* A whole-day status heads the day, and the meetings follow underneath —
+       you asked for both: the banner tells you where you are, the list tells
+       you what you are doing there. */
+    var body = '';
     if (whole) {
       var fdc = A.fullDayLabel(whole);
       var col2 = A.AVAIL_COLOR[whole.fullDay] || '#8b95a3';
-      var hidden = acts.map(function (r) {
-        return (r.startTime ? A.fmt12(r.startTime) + ' ' : '') + r.title;
-      });
-      body = '<div class="fullday" style="background:' + col2 + '1f;color:' + col2 +
-        ';border-left-color:' + col2 + '" title="' +
-        esc(fdc.title + (hidden.length ? ' — also logged: ' + hidden.join('; ') : '')) + '">' +
-        esc(fdc.bare) +
-        (hidden.length ? '<span class="fdmore">' + hidden.length + ' hidden</span>' : '') + '</div>';
-    } else {
-      body = acts.map(function (r) {
-        var col = A.TYPE_COLOR[r.type] || '#8b95a3';
-        return '<button class="ev" data-id="' + r.id + '" style="border-left-color:' + col + ';background:' + col + '18" title="' +
-          esc(r.title + ' — ' + r.type) + '">' + (r.startTime ? '<b>' + esc(A.fmt12(r.startTime)) + '</b> ' : '') +
-          esc(r.title) + '</button>';
-      }).join('') +
-      ($('#showOutlook') && $('#showOutlook').checked
-        ? S.outlookFor(ds).map(function (o) {
-            return '<span class="ev olchip" title="Outlook meeting ' + A.fmt12(o.start) + '–' + A.fmt12(o.end) +
-              '"><b>' + esc(A.fmt12(o.start)) + '</b> Outlook</span>';
-          }).join('') : '');
+      body += '<div class="fullday" style="background:' + col2 + '1f;color:' + col2 +
+        ';border-left-color:' + col2 + '" title="' + esc(fdc.title) + '">' + esc(fdc.bare) + '</div>';
     }
+    body += acts.map(function (r) {
+      var col = A.TYPE_COLOR[r.type] || '#8b95a3';
+      return '<button class="ev" data-id="' + r.id + '" style="border-left-color:' + col + ';background:' + col + '18" title="' +
+        esc(r.title + ' — ' + r.type) + '">' + (r.startTime ? '<b>' + esc(A.fmt12(r.startTime)) + '</b> ' : '') +
+        esc(r.title) + '</button>';
+    }).join('') +
+    ($('#showOutlook') && $('#showOutlook').checked
+      ? S.outlookFor(ds).map(function (o) {
+          return '<span class="ev olchip" title="Outlook meeting ' + A.fmt12(o.start) + '–' + A.fmt12(o.end) +
+            '"><b>' + esc(A.fmt12(o.start)) + '</b> Outlook</span>';
+        }).join('') : '');
     html += '<div class="day' + (out ? ' out' : '') + (wknd && !out ? ' wknd' : '') + (ds === td ? ' today' : '') + '">' +
       '<div class="dnum"><span>' + d.getDate() + '</span>' + tag +
       '<button class="dadd" data-newdate="' + ds + '" title="Log something">+</button></div>' +
@@ -1163,9 +1204,20 @@ function renderAvail() {
       '<div class="dsub"' + (fd.title ? ' title="' + esc(fd.title) + '"' : '') + '>' +
       A.dowOf(ds) + (fd.bare ? ' · ' + esc(fd.bare) : '') + '</div></td>';
     if (av.fullDay) {
+      /* The status names the day; the meetings on it are listed alongside, so a
+         travel day shows both where you were and what you did there. */
+      var onDay = S.activities.filter(function (a) { return a.date === ds && a.status !== 'Cancelled'; })
+        .sort(function (a, b) { return String(a.startTime || '99').localeCompare(String(b.startTime || '99')); });
       html += '<td colspan="' + slots.length + '"><div class="slot ' + av.fullDay.toLowerCase() +
         ' fullrow" style="height:34px;line-height:34px" title="' + esc(fd.title) + '">' +
-        esc(fd.bare) + '</div></td>';
+        esc(fd.bare) +
+        (onDay.length
+          ? '<span class="fdacts">' + onDay.map(function (a) {
+              return '<button class="fdact" data-act="' + a.id + '" title="' + esc(a.title + ' — ' + a.type) + '">' +
+                (a.startTime ? esc(A.fmt12(a.startTime)) + ' ' : '') + esc(a.title) + '</button>';
+            }).join('') + '</span>'
+          : '') +
+        '</div></td>';
         /* Status and place, nothing else. The day note often lists the very
            meetings the whole-day status is meant to replace — it stays on
            hover and in the Day editor. */
@@ -1211,6 +1263,9 @@ function renderAvail() {
     el.onmouseenter = function () { if (painting) paint(el); };
   });
   $$('#avGrid [data-day]').forEach(function (b) { b.onclick = function () { openDay(b.dataset.day); }; });
+  $$('#avGrid [data-act]').forEach(function (b) {
+    b.onclick = function (e) { e.stopPropagation(); openAct(b.dataset.act); };
+  });
 }
 function paint(el) {
   var p = el.dataset.cell.split('|'), ds = p[0], s = p[1];
@@ -1824,32 +1879,49 @@ function renderData() {
 
   var items = [];
   var push = function (cls, tag, html, go) { items.push({ cls: cls, tag: tag, html: html, go: go }); };
+  /* Each line drills to exactly its own records — switching tab and showing
+     everything is not an answer to "which ones?". */
   var noTime = S.activities.filter(function (a) { return !a.timed; });
   if (noTime.length) push('ms', 'No time', '<b>' + noTime.length + ' activities</b> have no start and end time, so hour totals estimate them at ' +
-    (CFG.defaultActivityMinutes || 60) + ' minutes', function () { setTab('log'); });
+    (CFG.defaultActivityMinutes || 60) + ' minutes',
+    function () { setDrill('Activities with no start and end time', 'activities', noTime, 'log'); });
+
+  var noMode = S.activities.filter(function (a) { return !String(a.mode || '').trim(); });
+  if (noMode.length) push('ms', 'No mode', '<b>' + noMode.length + ' activities</b> do not say whether they were in-person or online, ' +
+    'so travel time cannot be worked out for them',
+    function () { setDrill('Activities with no delivery mode', 'activities', noMode, 'log'); });
+
   var noOpp = S.activities.filter(function (a) { return a.kind === 'Deal support' && !a.oppId; });
   if (noOpp.length) push('ms', 'Unlinked', '<b>' + noOpp.length + ' deal-support activities</b> are not linked to an opportunity',
-    function () { setTab('log'); $('#lLinked').value = 'no'; renderLog(); });
+    function () { setDrill('Deal-support activities with no opportunity', 'activities', noOpp, 'log'); });
+
   var noAtt = S.activities.filter(function (a) { return a.kind === 'Enablement' && a.status === 'Completed' && !has(a.attendees); });
   if (noAtt.length) push('ms', 'No count', '<b>' + noAtt.length + ' completed events</b> have no attendee number',
-    function () { setTab('events'); $('#eStatus').value = 'Completed'; renderEvents(); });
+    function () { setDrill('Completed events with no attendee count', 'activities', noAtt, 'events'); });
+
   var noInd = S.opportunities.filter(function (o) { return !o.industry; });
   if (noInd.length) push('st', 'Industry', '<b>' + noInd.length + ' opportunities</b> have no industry',
-    function () { setTab('pipe'); pipeView = 'table'; renderPipe(); });
+    function () { pipeView = 'table'; setDrill('Opportunities with no industry', 'opportunities', noInd, 'pipe'); });
+
   var noPtr = S.opportunities.filter(function (o) { return !o.partner && !o.distributor; });
   if (noPtr.length) push('st', 'No partner', '<b>' + noPtr.length + ' opportunities</b> have no partner or distributor',
-    function () { setTab('pipe'); $('#pFlag').value = 'nopartner'; renderPipe(); });
+    function () { pipeView = 'table'; setDrill('Opportunities with no partner', 'opportunities', noPtr, 'pipe'); });
+
   var noLog = S.opportunities.filter(function (o) { return !o.touchCount; });
-  if (noLog.length) push('st', 'Silent', '<b>' + noLog.length + ' opportunities</b> have no activity logged against them', null);
+  if (noLog.length) push('st', 'Silent', '<b>' + noLog.length + ' opportunities</b> have no activity logged against them',
+    function () { pipeView = 'table'; setDrill('Opportunities with nothing logged', 'opportunities', noLog, 'pipe'); });
+
   var orphan = S.activities.filter(function (a) { return a.oppId && !S.oppMap[a.oppId]; });
-  if (orphan.length) push('od', 'Orphans', '<b>' + orphan.length + ' activities</b> point at an opportunity that no longer exists', null);
+  if (orphan.length) push('od', 'Orphans', '<b>' + orphan.length + ' activities</b> point at an opportunity that no longer exists',
+    function () { setDrill('Activities pointing at a deleted opportunity', 'activities', orphan, 'log'); });
 
   $('#health').innerHTML = items.length ? items.map(function (it, i) {
     return '<div class="ai ' + it.cls + '" data-h="' + i + '"><div class="ic">' + it.tag + '</div><div class="bd">' + it.html + '</div></div>';
   }).join('') : '<div class="empty">No data issues found.</div>';
   $$('#health [data-h]').forEach(function (el) {
     var it = items[+el.dataset.h];
-    if (it.go) el.onclick = it.go; else el.style.cursor = 'default';
+    if (it.go) { el.onclick = it.go; el.style.cursor = 'pointer'; el.title = 'Show me these records'; }
+    else el.style.cursor = 'default';
   });
   renderPartners();
 }
@@ -2433,7 +2505,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v18</b>';
+    ' · everything stored in your private Google Sheet · <b>v19</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */

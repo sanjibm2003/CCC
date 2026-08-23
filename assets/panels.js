@@ -32,6 +32,11 @@ function realPartners(rows) {
   });
 }
 function jump(fn) { return fn; }
+/* Hand the exact rows behind a chart element to the drill, and go to the tab
+   that lists them. Without this a chart can only ever tell you a number. */
+function drillTo(label, rows, tab) {
+  global.setDrill(label, tab === 'pipe' ? 'opportunities' : 'activities', rows, tab);
+}
 
 /* ====================================================================== */
 /*  PANEL REGISTRY                                                        */
@@ -111,7 +116,11 @@ var PANELS = [
         backgroundColor: '#1CA8DD', borderRadius: 3, maxBarThickness: 30 },
       { label: 'Internal', data: mk.map(function (k) { return inMonth(c.acts, k).filter(function (r) { return r.kind === 'Internal'; }).length; }),
         backgroundColor: '#c9d0d9', borderRadius: 3, maxBarThickness: 30 }
-    ], { stacked: true });
+    ], { stacked: true, onPick: function (i, label, ds) {
+      var kinds = ['Enablement', 'Deal support', 'Internal'];
+      drillTo(kinds[ds] + ' in ' + label,
+        inMonth(c.acts, mk[i]).filter(function (r) { return r.kind === kinds[ds]; }), 'log');
+    } });
   } },
 
 /* ------------------------------------------------------------- time split */
@@ -129,7 +138,8 @@ var PANELS = [
       '<div class="hint2">Activities without a start and end time are counted at ' +
       (CFG.defaultActivityMinutes || 60) + ' minutes. ' + c.as.timedPct + '% of these have exact times — ' +
       'add times as you log new work and this gets sharper.</div>';
-    A.doughnut('p_time', keys, hrs, keys.map(function (k) { return A.KIND_COLOR[k]; }));
+    A.doughnut('p_time', keys, hrs, keys.map(function (k) { return A.KIND_COLOR[k]; }),
+      { onPick: function (i) { drillTo(keys[i] + ' activities', g.get(keys[i]).rows, 'log'); } });
   } },
 
 /* ---------------------------------------------------------------- typemix */
@@ -138,7 +148,8 @@ var PANELS = [
     el.innerHTML = '<h3>Activity type mix</h3>' + canvas('p_type', true);
     var g = A.groupBy(c.acts, 'type'), keys = A.sortKeys(g, 'n');
     A.hbar('p_type', keys, keys.map(function (k) { return g.get(k).n; }),
-      keys.map(function (k) { return A.TYPE_COLOR[k] || '#8b95a3'; }), 'Activities');
+      keys.map(function (k) { return A.TYPE_COLOR[k] || '#8b95a3'; }), 'Activities',
+      { onPick: function (i) { drillTo('Type: ' + keys[i], g.get(keys[i]).rows, 'log'); } });
   } },
 
 /* ------------------------------------------------------------------ reach */
@@ -181,7 +192,7 @@ var PANELS = [
         backgroundColor: '#D3EEFB', borderRadius: 3, maxBarThickness: 26 },
       { label: 'Unique partners', data: rows.map(function (r) { return num(r.uniquePartners); }),
         backgroundColor: '#00D15F', borderRadius: 3, maxBarThickness: 26 }
-    ]);
+    ], { onPick: function (i) { drillTo(rows[i].title, [rows[i]], 'events'); } });
   } },
 
 /* ----------------------------------------------------------------- repeat */
@@ -221,7 +232,8 @@ var PANELS = [
     el.innerHTML = '<h3>Reach by enablement category <span>— attendees</span></h3>' + canvas('p_rcat', true);
     var g = A.groupBy(en, 'category'), keys = A.sortKeys(g, 'att').slice(0, 12);
     if (!keys.length) { el.innerHTML = '<h3>Reach by enablement category</h3>' + empty('No categorised enablement activities.'); return; }
-    A.hbar('p_rcat', keys, keys.map(function (k) { return g.get(k).att; }), '#00B87E', 'Attendees');
+    A.hbar('p_rcat', keys, keys.map(function (k) { return g.get(k).att; }), '#00B87E', 'Attendees',
+      { onPick: function (i) { drillTo('Category: ' + keys[i], g.get(keys[i]).rows, 'events'); } });
   } },
 
 /* ------------------------------------------------------------- conversion */
@@ -242,7 +254,7 @@ var PANELS = [
     A.bar('p_conv', rows.map(function (r) { return A.niceDate(r.date); }), [
       { label: 'Registered', data: rows.map(function (r) { return num(r.regs); }), backgroundColor: '#D3EEFB', borderRadius: 3, maxBarThickness: 26 },
       { label: 'Attended', data: rows.map(function (r) { return num(r.attendees); }), backgroundColor: '#00D15F', borderRadius: 3, maxBarThickness: 26 }
-    ]);
+    ], { onPick: function (i) { drillTo(rows[i].title, [rows[i]], 'events'); } });
   } },
 
 /* ------------------------------------------------------------------- zone */
@@ -259,7 +271,14 @@ var PANELS = [
         backgroundColor: '#1CA8DD', borderRadius: 3, maxBarThickness: 22 },
       { label: 'Open opps', data: zones.map(function (z) { return c.opps.filter(function (o) { return o.zone === z && o.state === 'Open'; }).length; }),
         backgroundColor: '#97D700', borderRadius: 3, maxBarThickness: 22 }
-    ]);
+    ], { onPick: function (i, zone, ds) {
+      if (ds === 2) drillTo(zone + ' — open opportunities',
+        c.opps.filter(function (o) { return o.zone === zone && o.state === 'Open'; }), 'pipe');
+      else {
+        var k = ds === 0 ? 'Enablement' : 'Deal support';
+        drillTo(zone + ' — ' + k, c.acts.filter(function (a) { return a.zone === zone && a.kind === k; }), 'log');
+      }
+    } });
   } },
 
 /* --------------------------------------------------------- partnereffect */
@@ -288,6 +307,15 @@ var PANELS = [
       { label: 'Deal support given', data: names.map(function (n) { return m[n].ds; }), backgroundColor: '#1CA8DD', borderRadius: 3, maxBarThickness: 12 },
       { label: 'Opportunities', data: names.map(function (n) { return m[n].opps; }), backgroundColor: '#97D700', borderRadius: 3, maxBarThickness: 12 }
     ], { indexAxis: 'y',
+         onPick: function (i, name, ds) {
+           if (ds === 2) drillTo(name + ' — opportunities',
+             c.opps.filter(function (o) { return o.partner === name || o.distributor === name; }), 'pipe');
+           else {
+             var k = ds === 0 ? 'Enablement' : 'Deal support';
+             drillTo(name + ' — ' + k,
+               c.acts.filter(function (a) { return a.partner === name && a.kind === k; }), 'log');
+           }
+         },
          scales: { x: { beginAtZero: true, grid: { color: '#EAECEE' }, ticks: { font: { size: 10.5 }, precision: 0 } },
                    y: { grid: { display: false }, ticks: { font: { size: 10 } } } } });
   } },
@@ -298,7 +326,8 @@ var PANELS = [
     var g = A.groupBy(realPartners(c.acts), 'partner'), keys = A.sortKeys(g, 'n').slice(0, 12);
     if (!keys.length) { el.innerHTML = '<h3>Most active partners</h3>' + empty('No named partners in this filter.'); return; }
     el.innerHTML = '<h3>Most active partners <span>— activities logged</span></h3>' + canvas('p_tp', true);
-    A.hbar('p_tp', keys, keys.map(function (k) { return g.get(k).n; }), '#8E71F4', 'Activities');
+    A.hbar('p_tp', keys, keys.map(function (k) { return g.get(k).n; }), '#8E71F4', 'Activities',
+      { onPick: function (i) { drillTo('Partner: ' + keys[i], g.get(keys[i]).rows, 'log'); } });
   } },
 
 /* ----------------------------------------------------------------- funnel */
@@ -339,7 +368,8 @@ var PANELS = [
     if (!keys.length) { el.innerHTML = '<h3>Product mix</h3>' + empty('No products recorded.'); return; }
     el.innerHTML = '<h3>Product mix <span>— open and closed opportunities</span></h3>' + canvas('p_prod');
     A.doughnut('p_prod', keys, keys.map(function (k) { return g.get(k).n; }),
-      keys.map(function (k, i) { return A.PALETTE[i % A.PALETTE.length]; }));
+      keys.map(function (k, i) { return A.PALETTE[i % A.PALETTE.length]; }),
+      { onPick: function (i) { drillTo('Product: ' + keys[i], g.get(keys[i]).rows, 'pipe'); } });
   } },
 
 /* --------------------------------------------------------------- availsum */
@@ -373,6 +403,44 @@ var PANELS = [
       { label: 'Travel days', data: mk.map(function (k) { return A.availStats(byMonth[k]).travelDays; }),
         backgroundColor: '#97D700', borderRadius: 3, maxBarThickness: 26 }
     ]);
+  } },
+
+/* ------------------------------------------------------------ travel time */
+{ id: 'traveltime', title: 'Travel vs meeting time', width: 'half',
+  render: function (el, c) {
+    var t = A.travelStats(c.acts);
+    var base = A.homeBases().map(function (x) { return x.replace(/\b\w/g, function (m) { return m.toUpperCase(); }); });
+    var cities = Object.keys(t.cities).sort(function (a, b) { return t.cities[b] - t.cities[a]; });
+
+    el.innerHTML = '<h3>Travel vs meeting time <span>\u2014 based in ' + esc(base.join(' / ')) + '</span></h3>' +
+      kpi([
+        ['Travel days', t.travelDays, t.detected ? t.detected + ' found from the log' : 'all marked by you', 'acc'],
+        ['Hours away', t.awayHours, 'meetings done out of base', 'acc'],
+        ['Hours at base', t.homeHours, 'online or local', ''],
+        ['Cities', t.cityCount, cities.slice(0, 2).join(', ') || '\u2014', '']
+      ]) +
+      '<div class="stat" style="margin-top:4px">' +
+        '<div><b style="color:var(--g-d)">' + t.meetingHoursOnTravelDays + 'h</b>in meetings on travel days</div>' +
+        '<div><b style="color:#FE8A25">' + t.otherHoursOnTravelDays + 'h</b>travelling &amp; everything else</div>' +
+      '</div>' + canvas('p_travelsplit') +
+      (t.unknownHours
+        ? '<div class="hint2"><b>' + t.unknownHours + ' hours cannot be placed.</b> ' +
+          'Travel is worked out from <b>delivery mode</b> \u2014 in-person somewhere other than ' +
+          esc(base[0]) + ' means you travelled. Activities with no mode set cannot be judged either way. ' +
+          'Fill it in from <b>Data \u2192 Data health \u2192 No mode</b> and these hours move into the right column.</div>'
+        : '<div class="hint2">Every activity says whether it was in-person or online, so the split above is complete.</div>');
+
+    /* The working time on travel days. The remainder is named honestly: not
+       logged, rather than claimed to be all flying. */
+    A.doughnut('p_travelsplit',
+      ['Meetings on travel days', 'Travel & unlogged'],
+      [t.meetingHoursOnTravelDays, t.otherHoursOnTravelDays],
+      ['#00D15F', '#FE8A25'],
+      { onPick: function (i) {
+          if (i !== 0) { A.toast('Unlogged time has no records behind it \u2014 that is rather the point'); return; }
+          drillTo('Activities on travel days',
+            c.acts.filter(function (a) { return t.index[a.date]; }), 'log');
+        } });
   } },
 
 /* ----------------------------------------------------------------- travel */
@@ -431,7 +499,8 @@ var PANELS = [
                ' · ' + g.get(k).att + ' people</div>';
       }).join('') + '</div>' + canvas('p_lvl');
     A.doughnut('p_lvl', keys, keys.map(function (k) { return g.get(k).n; }),
-      keys.map(function (k) { return A.LEVEL_COLOR[k] || '#8b95a3'; }));
+      keys.map(function (k) { return A.LEVEL_COLOR[k] || '#8b95a3'; }),
+      { onPick: function (i) { drillTo('Level: ' + keys[i], g.get(keys[i]).rows, 'events'); } });
   } },
 
 /* ------------------------------------------------------------------- tier */
@@ -599,7 +668,8 @@ var PANELS = [
     var keys = A.sortKeys(g, 'n');
     if (!keys.length) { el.innerHTML = '<h3>Industry spread</h3>' + empty('No industries recorded.'); return; }
     el.innerHTML = '<h3>Industry spread <span>— opportunities</span></h3>' + canvas('p_ind', true);
-    A.hbar('p_ind', keys, keys.map(function (k) { return g.get(k).n; }), '#1CA8DD', 'Opportunities');
+    A.hbar('p_ind', keys, keys.map(function (k) { return g.get(k).n; }), '#1CA8DD', 'Opportunities',
+      { onPick: function (i) { drillTo('Industry: ' + keys[i], g.get(keys[i]).rows, 'pipe'); } });
   } },
 
 /* ------------------------------------------------------------ stakeholder */
@@ -609,7 +679,8 @@ var PANELS = [
     var keys = A.sortKeys(g, 'n').slice(0, 14);
     if (!keys.length) { el.innerHTML = '<h3>Activity by Veeam stakeholder</h3>' + empty('No stakeholders recorded.'); return; }
     el.innerHTML = '<h3>Activity by Veeam stakeholder <span>— who I work with most</span></h3>' + canvas('p_stake', true);
-    A.hbar('p_stake', keys, keys.map(function (k) { return g.get(k).n; }), '#00B87E', 'Activities');
+    A.hbar('p_stake', keys, keys.map(function (k) { return g.get(k).n; }), '#00B87E', 'Activities',
+      { onPick: function (i) { drillTo('Stakeholder: ' + keys[i], g.get(keys[i]).rows, 'log'); } });
   } },
 
 /* --------------------------------------------------------- attention */

@@ -260,6 +260,85 @@ function fullDayLabel(av) {
   return mk(f, f);
 }
 
+/* ------------------------------------------------------- travel & time
+   Your rule: you are based in Mumbai, and any IN-PERSON activity somewhere
+   else means you travelled for it.
+
+   Mode matters. A Call logged against a Delhi customer carries "Delhi" as its
+   location, but you were at your desk — judging by city alone would call that
+   a trip. So an activity only counts as away when it says In-person. Where the
+   mode is blank we cannot tell, and we say so rather than guess. */
+function homeBases() {
+  var h = CFG.homeBase || 'Mumbai';          /* fallback must be lowercased too */
+  return (Array.isArray(h) ? h : [h])
+    .map(function (x) { return String(x).trim().toLowerCase(); })
+    .filter(Boolean);
+}
+function isHomeCity(city) {
+  var c = String(city == null ? '' : city).trim().toLowerCase();
+  return !c || homeBases().indexOf(c) > -1;
+}
+/* 'away' — travelled for it. 'home' — did it from base. 'unknown' — no mode. */
+function whereDone(a) {
+  var mode = String((a && a.mode) || '').trim();
+  if (mode === 'Online') return 'home';
+  if (!mode) return 'unknown';
+  return isHomeCity(a.location) ? 'home' : 'away';
+}
+function isAway(a) { return whereDone(a) === 'away'; }
+
+/* A day counts as a travel day if you marked it Travelling, or if something
+   in-person happened away from base. Both are evidence; neither is ignored. */
+function travelDaysIndex() {
+  var out = {};
+  Store.availability.forEach(function (d) {
+    if (d.fullDay === 'Travelling') out[d.date] = { marked: true, city: travelCityOf(d) };
+  });
+  Store.activities.forEach(function (a) {
+    if (!isAway(a)) return;
+    if (!out[a.date]) out[a.date] = { marked: false, city: a.location };
+    else if (!out[a.date].city) out[a.date].city = a.location;
+  });
+  return out;
+}
+
+/* Split the time on travel days between meetings and everything else. The
+   remainder is transit, waiting and the rest of the day — it is honest to call
+   it unlogged rather than to claim it is all flying. */
+function travelStats(acts) {
+  var idx = travelDaysIndex();
+  var dayH = num(CFG.workingDayHours) || 9;
+  var days = Object.keys(idx).sort();
+  var awayMins = 0, homeMins = 0, unknownMins = 0;
+  (acts || Store.activities).forEach(function (a) {
+    var m = num(a.minutes);
+    var w = whereDone(a);
+    if (w === 'away') awayMins += m;
+    else if (w === 'home') homeMins += m;
+    else unknownMins += m;
+  });
+  var onTravelMins = 0;
+  (acts || Store.activities).forEach(function (a) { if (idx[a.date]) onTravelMins += num(a.minutes); });
+  var capacity = days.length * dayH * 60;
+  var cities = {};
+  days.forEach(function (d) { if (idx[d].city) cities[idx[d].city] = (cities[idx[d].city] || 0) + 1; });
+  return {
+    days: days,
+    travelDays: days.length,
+    markedOnly: days.filter(function (d) { return idx[d].marked; }).length,
+    detected: days.filter(function (d) { return !idx[d].marked; }).length,
+    cities: cities,
+    cityCount: Object.keys(cities).length,
+    awayHours: +(awayMins / 60).toFixed(1),
+    homeHours: +(homeMins / 60).toFixed(1),
+    unknownHours: +(unknownMins / 60).toFixed(1),
+    meetingHoursOnTravelDays: +(onTravelMins / 60).toFixed(1),
+    otherHoursOnTravelDays: +(Math.max(0, capacity - onTravelMins) / 60).toFixed(1),
+    capacityHours: +(capacity / 60).toFixed(1),
+    index: idx
+  };
+}
+
 function slotList() {
   var out = [], t = CFG.dayStart || '09:00', end = CFG.dayEnd || '18:00', step = CFG.slotMinutes || 30, g = 0;
   while (t !== end && g++ < 96) { out.push(t); t = addMins(t, step); }
@@ -795,10 +874,25 @@ function kindChip(k) {
 var CH = {};
 var CH_DEF = { responsive: true, maintainAspectRatio: false };
 function destroyCharts() { Object.keys(CH).forEach(function (k) { try { CH[k].destroy(); } catch (e) {} }); CH = {}; }
+/* Charts are clickable. `opts.onPick(index, label, datasetIndex)` is called when
+   you click a bar, slice or point; the panel decides which records that means.
+   Without this a chart can only tell you a number, never show you the rows. */
+function pickable(opts, labels) {
+  var pick = opts && opts.onPick;
+  if (!pick) return {};
+  return {
+    onHover: function (e, els) { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+    onClick: function (e, els, chart) {
+      if (!els.length) return;
+      var i = els[0].index;
+      pick(i, labels[i], els[0].datasetIndex);
+    }
+  };
+}
 function bar(id, labels, datasets, opts) {
   var el = document.getElementById(id); if (!el || !global.Chart) return;
   CH[id] = new Chart(el, { type: 'bar', data: { labels: labels, datasets: datasets },
-    options: Object.assign({}, CH_DEF, {
+    options: Object.assign({}, CH_DEF, pickable(opts, labels), {
       plugins: { legend: { display: datasets.length > 1, labels: { boxWidth: 10, font: { size: 11 } } } },
       scales: { x: { grid: { display: false }, stacked: !!(opts && opts.stacked),
                      ticks: { font: { size: 10.5 }, autoSkip: false, maxRotation: 60 } },
@@ -806,26 +900,26 @@ function bar(id, labels, datasets, opts) {
                      grid: { color: '#EAECEE' }, ticks: { font: { size: 10.5 }, precision: 0 } } }
     }, opts || {}) });
 }
-function hbar(id, labels, data, colour, label) {
+function hbar(id, labels, data, colour, label, opts) {
   bar(id, labels, [{ label: label || 'Count', data: data, backgroundColor: colour, borderRadius: 4, maxBarThickness: 18 }], {
-    indexAxis: 'y',
+    indexAxis: 'y', onPick: opts && opts.onPick,
     scales: { x: { beginAtZero: true, grid: { color: '#EAECEE' }, ticks: { font: { size: 10.5 }, precision: 0 } },
               y: { grid: { display: false }, ticks: { font: { size: 10 } } } } });
 }
-function doughnut(id, labels, values, colours) {
+function doughnut(id, labels, values, colours, opts) {
   var el = document.getElementById(id); if (!el || !global.Chart) return;
   CH[id] = new Chart(el, { type: 'doughnut',
     data: { labels: labels, datasets: [{ data: values, backgroundColor: colours, borderWidth: 2, borderColor: '#fff' }] },
-    options: Object.assign({}, CH_DEF, { cutout: '58%',
+    options: Object.assign({}, CH_DEF, pickable(opts, labels), { cutout: '58%',
       plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 11 } } } } }) });
 }
-function line(id, labels, series) {
+function line(id, labels, series, opts) {
   var el = document.getElementById(id); if (!el || !global.Chart) return;
   CH[id] = new Chart(el, { type: 'line',
     data: { labels: labels, datasets: series.map(function (s) {
       return { label: s.label, data: s.data, borderColor: s.colour, backgroundColor: s.colour + '20',
                fill: s.fill !== false, tension: .3, pointRadius: 3, borderWidth: 2 }; }) },
-    options: Object.assign({}, CH_DEF, {
+    options: Object.assign({}, CH_DEF, pickable(opts, labels), {
       plugins: { legend: { display: series.length > 1, labels: { boxWidth: 10, font: { size: 11 } } } },
       scales: { x: { grid: { display: false }, ticks: { font: { size: 10.5 } } },
                 y: { beginAtZero: true, grid: { color: '#EAECEE' }, ticks: { font: { size: 10.5 } } } } }) });
@@ -933,6 +1027,8 @@ global.APP = {
   parseT: parseT, parseRange: parseRange, fmt12: fmt12, minsBetween: minsBetween, addMins: addMins,
   durLabel: durLabel, actMinutes: actMinutes, isTimed: isTimed, slotList: slotList, kindOf: kindOf, stageClosed: stageClosed,
   fullDayLabel: fullDayLabel, travelCityOf: travelCityOf, knownPlaces: knownPlaces,
+  whereDone: whereDone, isAway: isAway, isHomeCity: isHomeCity, homeBases: homeBases,
+  travelStats: travelStats, travelDaysIndex: travelDaysIndex,
   normActivity: normActivity, normOpp: normOpp, normAvail: normAvail, normPartner: normPartner,
   partnerKey: partnerKey,
   Store: Store, Auth: Auth, L_DEFAULT: L_DEFAULT, EDITABLE_LISTS: EDITABLE_LISTS,
