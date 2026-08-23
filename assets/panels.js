@@ -542,7 +542,7 @@ var PANELS = [
     var td = A.today(), days = [], step = CFG.slotMinutes || 30;
     for (var i = 0; i < 14; i++) {
       var d = A.addDays(td, i);
-      if (!CFG.showWeekends && A.isWeekend(d)) continue;
+      if (A.hiddenDay(d)) continue;
       days.push(d);
     }
     var slotsPerDay = A.slotList().length;

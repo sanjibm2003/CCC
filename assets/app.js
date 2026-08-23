@@ -1182,7 +1182,7 @@ function monthDates() {
   var y = avCursor.getFullYear(), m = avCursor.getMonth(), last = new Date(y, m + 1, 0).getDate(), out = [];
   for (var d = 1; d <= last; d++) {
     var ds = y + '-' + A.pad(m + 1) + '-' + A.pad(d);
-    if (!CFG.showWeekends && A.isWeekend(ds)) continue;
+    if (A.hiddenDay(ds)) continue;
     out.push(ds);
   }
   return out;
@@ -1340,7 +1340,10 @@ function loadTpl() {
 }
 function saveTpl() { try { localStorage.setItem(TPL_KEY, JSON.stringify(tpl)); } catch (e) {} }
 function tplDays() {
-  return CFG.showWeekends ? A.DOW.slice() : ['Mon','Tue','Wed','Thu','Fri'];
+  /* Mon-first reads better for a working week, and Sat/Sun are only dropped
+     if you explicitly asked for that. */
+  var order = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  return A.showWeekends() ? order : order.slice(0, 5);
 }
 function renderTpl() {
   var slots = A.slotList(), days = tplDays();
@@ -1403,7 +1406,7 @@ function applyRange() {
   if (A.daysBetween(from, to) > 120) { A.toast('That range is longer than four months'); return; }
   var d = from, n = 0, days = [];
   while (d <= to) {
-    if (CFG.showWeekends || !A.isWeekend(d)) {
+    if (!A.hiddenDay(d)) {
       var av = S.availMap[d] || A.normAvail({ date: d });
       if (what === '') { av.fullDay = ''; av.travelCity = ''; av.slots = {}; }
       else if (['Travelling','Holiday','Personal'].indexOf(what) > -1) {
@@ -2505,7 +2508,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v19</b>';
+    ' · everything stored in your private Google Sheet · <b>v20</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */

@@ -119,6 +119,12 @@ function today() { return ymd(new Date()); }
 function dateObj(s) { return new Date(String(s).slice(0, 10) + 'T00:00:00'); }
 function dowOf(s) { return DOW[dateObj(s).getDay()]; }
 function isWeekend(s) { var d = dateObj(s).getDay(); return d === 0 || d === 6; }
+/* Whether Saturday and Sunday appear at all. Absent means YES — a missing
+   setting must never quietly delete two days a week from the diary. Set
+   showWeekends:false in config.js only if you want a Mon-Fri view. */
+function showWeekends() { return CFG.showWeekends !== false; }
+/* True when this date should be hidden. */
+function hiddenDay(ds) { return !showWeekends() && isWeekend(ds); }
 function daysBetween(a, b) { return Math.round((dateObj(b) - dateObj(a)) / 86400000); }
 function daysAgo(s) { return daysBetween(s, today()); }
 function addDays(s, n) { var d = dateObj(s); d.setDate(d.getDate() + n); return ymd(d); }
@@ -1021,7 +1027,7 @@ global.APP = {
   STATUS_COLOR: STATUS_COLOR, AVAIL_COLOR: AVAIL_COLOR, LEVEL_COLOR: LEVEL_COLOR,
   $: $, $$: $$, esc: esc, toast: toast,
   uid: uid, num: num, has: has, pad: pad, ymd: ymd, today: today, dateObj: dateObj, dowOf: dowOf,
-  isWeekend: isWeekend, daysBetween: daysBetween, daysAgo: daysAgo, addDays: addDays,
+  isWeekend: isWeekend, showWeekends: showWeekends, hiddenDay: hiddenDay, daysBetween: daysBetween, daysAgo: daysAgo, addDays: addDays,
   niceDate: niceDate, longDate: longDate,
   qOf: qOf, fyOf: fyOf, qKey: qKey, qLabel: qLabel, mOf: mOf, mKeyLabel: mKeyLabel, quarterMonths: quarterMonths,
   parseT: parseT, parseRange: parseRange, fmt12: fmt12, minsBetween: minsBetween, addMins: addMins,
