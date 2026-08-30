@@ -29,8 +29,8 @@ function gateMsg(kind, html) {
   el.innerHTML = html || '';
 }
 function unlock(tok, remember) {
-  if (!CFG.apiUrl) {
-    gateMsg('err', 'No Google Sheet configured. Add your Web App URL to <b>config.js</b> as <b>apiUrl</b>.');
+  if (!A.apiUrl()) {
+    gateMsg('err', 'No Google Sheet configured. Add your Web App URL under <b>Tools &rarr; Connection &amp; token</b>, or as <b>apiUrl</b> in <b>config.js</b>.');
     return;
   }
   if (!tok) { gateMsg('err', 'Enter your access token.'); return; }
@@ -1901,7 +1901,10 @@ function renderPartners() {
 /* ====================================================================== */
 function renderData() {
   $('#connInfo').innerHTML = [
-    ['Web App URL', CFG.apiUrl ? '<span class="src">' + esc(CFG.apiUrl.slice(0, 54)) + '…</span>' : '<b style="color:var(--red)">not set</b>'],
+    ['Web App URL', A.apiUrl()
+        ? '<span class="src">' + esc(A.apiUrl().slice(0, 54)) + '…</span>' +
+          (A.apiIsOverridden() ? ' <b>(set in this browser)</b>' : '')
+        : '<b style="color:var(--red)">not set</b>'],
     ['Status', '<span class="dot ok"></span> connected'],
     ['Last loaded', S.updated ? esc(String(S.updated).slice(0, 16).replace('T', ' ')) + ' UTC' : '—'],
     ['Activities', S.activities.length + ' <span class="src">(' +
@@ -2121,6 +2124,15 @@ function wireBulkButtons() {
 
   var save = $('#lsSave');
   if (save) save.onclick = saveLists;
+
+  /* Connection dialog: go back to whatever config.js says. */
+  var ur = $('#sUrlReset');
+  if (ur) ur.onclick = function () {
+    A.setApiUrl('');
+    $('#s_url').value = A.apiUrl();
+    syncUrlHint();
+    A.toast('Using the Web App URL from config.js');
+  };
 
   /* Rename everywhere. */
   var rn = $('#rnGo');
@@ -2537,7 +2549,8 @@ function runImport() {
         .then(function () { $('#impGo').disabled = false; });
 }
 function openSettings() {
-  $('#s_url').value = CFG.apiUrl || '(not set in config.js)';
+  $('#s_url').value = A.apiUrl();
+  syncUrlHint();
   $('#s_tok').value = Auth.token();
   $('#setOk').classList.remove('show'); $('#setErr').classList.remove('show');
   $('#ovSet').classList.add('open');
@@ -2571,7 +2584,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v22</b>';
+    ' · everything stored in your private Google Sheet · <b>v23</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */
@@ -2851,6 +2864,8 @@ function wire() {
   };
   $('#impGo').onclick = runImport;
   $('#sTest').onclick = function () {
+    A.setApiUrl($('#s_url').value);
+    syncUrlHint();
     S.api('ping', {}, cleanTok($('#s_tok').value)).then(function (j) {
       $('#setErr').classList.remove('show');
       var o = $('#setOk');
@@ -2860,6 +2875,7 @@ function wire() {
     }).catch(function (e) { $('#setOk').classList.remove('show'); showErr('#setErr', e.message); });
   };
   $('#sSave').onclick = function () {
+    A.setApiUrl($('#s_url').value);      /* a redeploy can change this — no file edit needed */
     Auth.set(cleanTok($('#s_tok').value), $('#s_remember').checked);
     A.toast('Token saved'); $('#sTest').click();
   };
@@ -2879,6 +2895,19 @@ function wire() {
 /* ====================================================================== */
 /*  SELF-CHECK  — tells you exactly which setup step is incomplete        */
 /* ====================================================================== */
+/* Say plainly which URL is in force, because a stale one is invisible
+   otherwise — the page just fails to log in and blames the token. */
+function syncUrlHint() {
+  var el = $('#s_urlHint');
+  if (!el) return;
+  var over = A.apiIsOverridden();
+  el.innerHTML = over
+    ? 'Set here, in this browser — this <b>overrides config.js</b>. ' +
+      'Press <b>Use config.js URL</b> to go back to the file.'
+    : 'Coming from <b>config.js</b>. Redeployed the Apps Script and got a new URL? ' +
+      'Paste it here and press Save — no need to touch GitHub.';
+}
+
 function runDiagnostics() {
   var box = $('#diag');
   box.classList.remove('hide');
@@ -2985,7 +3014,7 @@ document.addEventListener('DOMContentLoaded', function () {
   $('#gateSub').textContent = CFG.ownerName
     ? 'Private workspace for ' + CFG.ownerName + '. Enter your access token.'
     : 'Private. Enter your access token to continue.';
-  if (!CFG.apiUrl) {
+  if (!A.apiUrl()) {
     gateMsg('err', 'Setup is not finished — your Google Sheet is not connected yet.');
     $('#gateTok').disabled = true;
     $('#gateGo').disabled = true;

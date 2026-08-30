@@ -467,6 +467,29 @@ function partnerKey(s) {
 }
 
 /* ------------------------------------------------------------------ store */
+/* ------------------------------------------------------------ endpoint
+   Redeploying the Apps Script can hand you a brand-new /exec URL. Keeping that
+   only in config.js means every redeploy needs a file edit and a push — and if
+   the file is ever reverted, the site silently calls a dead deployment and
+   login fails for no visible reason. So the URL can also be set in the app and
+   kept in this browser, which always wins over config.js. */
+var API_KEY = 'ccc_api_url';
+function apiUrl() {
+  var saved = '';
+  try { saved = localStorage.getItem(API_KEY) || ''; } catch (e) {}
+  return String(saved || CFG.apiUrl || '').trim();
+}
+function apiIsOverridden() {
+  try { return !!localStorage.getItem(API_KEY); } catch (e) { return false; }
+}
+function setApiUrl(u) {
+  var v = String(u == null ? '' : u).trim();
+  try {
+    if (!v || v === String(CFG.apiUrl || '').trim()) localStorage.removeItem(API_KEY);
+    else localStorage.setItem(API_KEY, v);
+  } catch (e) {}
+}
+
 var Store = {
   activities: [], opportunities: [], availability: [], partners: [], layout: [], lists: {},
   backend: 0, hasOutlook: false,
@@ -683,8 +706,9 @@ var Store = {
   actsFor: function (oppId) { return this.actsByOpp[oppId] || []; },
 
   api: function (action, payload, tok) {
-    if (!CFG.apiUrl) return Promise.reject(new Error('No Google Sheet configured — set apiUrl in config.js'));
-    return fetch(CFG.apiUrl, {
+    var url = apiUrl();
+    if (!url) return Promise.reject(new Error('No Google Sheet configured — set the Web App URL under Tools → Connection & token'));
+    return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },   /* simple request: no preflight */
       body: JSON.stringify({ token: tok || Auth.token(), action: action, payload: payload || {} })
@@ -1065,7 +1089,7 @@ global.APP = {
   travelStats: travelStats, travelDaysIndex: travelDaysIndex,
   normActivity: normActivity, normOpp: normOpp, normAvail: normAvail, normPartner: normPartner,
   partnerKey: partnerKey,
-  Store: Store, Auth: Auth, L_DEFAULT: L_DEFAULT, EDITABLE_LISTS: EDITABLE_LISTS,
+  Store: Store, Auth: Auth, apiUrl: apiUrl, setApiUrl: setApiUrl, apiIsOverridden: apiIsOverridden, L_DEFAULT: L_DEFAULT, EDITABLE_LISTS: EDITABLE_LISTS,
   NEEDS_BACKEND: 13,
   groupBy: groupBy, sortKeys: sortKeys, actStats: actStats, oppStats: oppStats, availStats: availStats,
   statusPill: statusPill, stagePill: stagePill, typePill: typePill, colourPill: colourPill, kindChip: kindChip,
