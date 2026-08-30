@@ -1602,6 +1602,10 @@ function saveAct(mode) {
     saveActNow(mode);
   }).catch(function (e) {
     $('#actSave').disabled = false;
+    if (e && e.message === '__cancelled__') {
+      showErr('#actErr', 'Pick which opportunity this belongs to, then save again.');
+      return;
+    }
     showErr('#actErr', 'Could not create the opportunity: ' + esc(e.message));
   });
 }
@@ -1616,12 +1620,33 @@ function ensureOppForCustomer(kindNow) {
   var cust = String($('#a_customer').value || '').trim();
   if (!cust) return Promise.resolve(null);
 
-  var existing = S.opportunities.filter(function (o) {
+  var matches = S.opportunities.filter(function (o) {
     return String(o.customer || '').trim().toLowerCase() === cust.toLowerCase();
-  })[0];
-  if (existing) {
-    setOppPick(existing.id);
-    return Promise.resolve(existing);
+  });
+  if (matches.length === 1) {
+    setOppPick(matches[0].id);
+    return Promise.resolve(matches[0]);
+  }
+  if (matches.length > 1) {
+    /* Two deals for one customer. Picking the first would silently attach the
+       activity to the wrong one, so ask. Open deals first, most recently
+       touched at the top — the likely answer is near the front. */
+    var ordered = matches.slice().sort(function (a, b) {
+      if (A.stageClosed(a.stage) !== A.stageClosed(b.stage)) return A.stageClosed(a.stage) ? 1 : -1;
+      return String(b.lastTouch || '').localeCompare(String(a.lastTouch || ''));
+    });
+    return askChoice(esc(cust) + ' has ' + matches.length + ' opportunities',
+      'Which one is this activity against?',
+      ordered.slice(0, 4).map(function (o) {
+        return { key: o.id, label: o.name || o.customer,
+                 note: o.stage + (o.lastTouch ? ' · last activity ' + A.niceDate(o.lastTouch) : ' · nothing logged yet') };
+      })
+    ).then(function (id) {
+      /* Cancelling must not quietly file the activity against nobody. */
+      if (!id) throw new Error('__cancelled__');
+      setOppPick(id);
+      return S.oppMap[id];
+    });
   }
   return createOpp(cust, cust).then(function (rec) {
     if (!rec) throw new Error('the Sheet rejected it');
@@ -1629,7 +1654,9 @@ function ensureOppForCustomer(kindNow) {
   });
 }
 
+var stageHeld = null;
 function saveActNow(mode) {
+  stageHeld = null;
   var rec = collectAct();
   S.upsert('activities', rec, A.normActivity);
   if (['Internal','Partner','End Customer'].indexOf(rec.partner) === -1) ensurePartner(rec.partner, rec.partnerType);
@@ -1640,7 +1667,11 @@ function saveActNow(mode) {
   var o = S.oppMap[rec.oppId];
   if (o) {
     var upd = Object.assign({}, o);
-    if (rec.stage) upd.stage = rec.stage;
+    /* Advance only — see advanceStage(). The activity keeps whatever stage you
+       chose; the opportunity keeps the furthest it has got to. */
+    var wanted = rec.stage, moved = A.advanceStage(o.stage, wanted);
+    if (wanted && moved !== wanted) stageHeld = { deal: o.customer || o.name, at: o.stage, tried: wanted };
+    upd.stage = moved;
     if (rec.nextAction) upd.nextAction = rec.nextAction;
     if (rec.followUpDate) upd.followUpDate = rec.followUpDate;
     /* Contact details live on the customer, not on one meeting — so typing
@@ -1661,7 +1692,12 @@ function saveActNow(mode) {
   }
   $('#actSave').disabled = true;
   Promise.all(jobs).then(function () {
-    A.toast(editAct ? 'Activity updated' : 'Activity logged');
+    if (stageHeld) {
+      A.toast(stageHeld.deal + ' stays at ' + stageHeld.at + ' — “' + stageHeld.tried +
+              '” is recorded on the activity, but a deal only moves forward', 6500);
+    } else {
+      A.toast(editAct ? 'Activity updated' : 'Activity logged');
+    }
     if (mode === 'again') {
       var d = rec.date, t = rec.type;
       $('#ovAct').classList.remove('open');
@@ -1913,6 +1949,33 @@ function renderData() {
   var noLog = S.opportunities.filter(function (o) { return !o.touchCount; });
   if (noLog.length) push('st', 'Silent', '<b>' + noLog.length + ' opportunities</b> have no activity logged against them',
     function () { pipeView = 'table'; setDrill('Opportunities with nothing logged', 'opportunities', noLog, 'pipe'); });
+
+  /* A deal sitting lower than its own history — usually because an older
+     build let a catch-up call drag the stage backwards. */
+  var behind = S.opportunities.filter(function (o) {
+    var best = -1;
+    S.actsFor(o.id).forEach(function (a) {
+      var r = A.stageRank(a.stage);
+      if (r > best) best = r;
+    });
+    return best > -1 && !A.stageClosed(o.stage) && best > A.stageRank(o.stage);
+  });
+  if (behind.length) push('st', 'Behind', '<b>' + behind.length + ' opportunities</b> sit at a lower stage than ' +
+    'their own activity history reached — nudge them forward if that is wrong',
+    function () { pipeView = 'table'; setDrill('Deals below their own history', 'opportunities', behind, 'pipe'); });
+
+  /* Two opportunities under one customer name. The pipeline should show one
+     row per deal, so this is either a real second deal or a typo to merge. */
+  var seen = {}, dupes = [];
+  S.opportunities.forEach(function (o) {
+    var k = String(o.customer || '').trim().toLowerCase();
+    if (!k) return;
+    if (seen[k]) { if (dupes.indexOf(seen[k]) < 0) dupes.push(seen[k]); dupes.push(o); }
+    else seen[k] = o;
+  });
+  if (dupes.length) push('st', 'Duplicate', '<b>' + dupes.length + ' opportunities</b> share a customer name with another — ' +
+    'merge them with <b>Rename everywhere</b> if one is a typo',
+    function () { pipeView = 'table'; setDrill('Customers with more than one deal', 'opportunities', dupes, 'pipe'); });
 
   var orphan = S.activities.filter(function (a) { return a.oppId && !S.oppMap[a.oppId]; });
   if (orphan.length) push('od', 'Orphans', '<b>' + orphan.length + ' activities</b> point at an opportunity that no longer exists',
@@ -2508,7 +2571,7 @@ function start() {
   $('#subline').textContent = (CFG.ownerName || '') + (CFG.ownerRole ? ' · ' + CFG.ownerRole : '');
   $('#srcLabel').textContent = S.activities.length + ' activities · ' + S.opportunities.length + ' opportunities';
   $('#footer').innerHTML = esc(CFG.ownerName) + ' · all times ' + esc(CFG.timezoneLabel) +
-    ' · everything stored in your private Google Sheet · <b>v21</b>';
+    ' · everything stored in your private Google Sheet · <b>v22</b>';
   layout = normLayout(S.layout && S.layout.length ? S.layout : defaultLayout());
 
   /* The commonest upgrade mistake: new Code.gs pasted, but no new deployment. */

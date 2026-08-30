@@ -367,6 +367,33 @@ function kindOf(type) {
 
 /* Same idea for the pipeline. "Closed-…" is closed by name; anything else you
    invent is closed only if you said so, and that answer lives in the Sheet. */
+/* Where a stage sits in the funnel. -1 for anything not on the list, so an
+   unknown value can never be mistaken for progress. */
+function stageRank(stage) {
+  var s = String(stage == null ? '' : stage).trim();
+  if (!s) return -1;
+  return (L.stage || []).indexOf(s);
+}
+
+/* A deal moves forward, not back. Logging a Discussion against something that
+   already reached Prove Value records the discussion in the activity history
+   but leaves the opportunity where it is — otherwise every catch-up call would
+   undo months of progress.
+
+   Closing is the exception: a deal can be won or lost from any stage, so those
+   always take effect. Returns the stage the opportunity should now be at. */
+function advanceStage(current, proposed) {
+  var cur = String(current == null ? '' : current).trim();
+  var nxt = String(proposed == null ? '' : proposed).trim();
+  if (!nxt) return cur;                     /* "leave unchanged" */
+  if (stageClosed(nxt)) return nxt;         /* won, lost or dropped — always */
+  if (stageClosed(cur)) return cur;         /* already closed; do not reopen by accident */
+  var rc = stageRank(cur), rn = stageRank(nxt);
+  if (rc < 0) return nxt;                   /* nothing sensible to compare against */
+  if (rn < 0) return cur;                   /* unknown proposed stage — leave it be */
+  return rn > rc ? nxt : cur;
+}
+
 function stageClosed(stage) {
   var s = String(stage == null ? '' : stage).trim();
   if (!s) return false;
@@ -1032,6 +1059,7 @@ global.APP = {
   qOf: qOf, fyOf: fyOf, qKey: qKey, qLabel: qLabel, mOf: mOf, mKeyLabel: mKeyLabel, quarterMonths: quarterMonths,
   parseT: parseT, parseRange: parseRange, fmt12: fmt12, minsBetween: minsBetween, addMins: addMins,
   durLabel: durLabel, actMinutes: actMinutes, isTimed: isTimed, slotList: slotList, kindOf: kindOf, stageClosed: stageClosed,
+  stageRank: stageRank, advanceStage: advanceStage,
   fullDayLabel: fullDayLabel, travelCityOf: travelCityOf, knownPlaces: knownPlaces,
   whereDone: whereDone, isAway: isAway, isHomeCity: isHomeCity, homeBases: homeBases,
   travelStats: travelStats, travelDaysIndex: travelDaysIndex,
